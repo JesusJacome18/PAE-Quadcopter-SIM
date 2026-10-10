@@ -1,0 +1,151 @@
+\section{Propulsor y asignación de control}
+\label{sec:propulsion}
+
+\subsection{Modelo ESC + motor sin escobillas + hélice}
+
+El controlador de vuelo no manda empuje: manda un acelerador $\sigma$
+(un ancho de pulso o un valor DShot normalizado) a un ESC, y el ESC lleva el
+motor a una velocidad. El modelo de \cod{propulsion.py} sigue la cadena
+física en ese orden, con las ecuaciones del cap.~4 de Quan \cite{qq17} y de
+CopterSim \cite{cs19}:
+\begin{align}
+\omega_{ss}(\sigma) &= \begin{cases}
+0 & \sigma < \sigma_{dz}\\
+\max\!\big(0,\ C_R\,\sigma + \omega_b\big) & \sigma\ge\sigma_{dz}
+\end{cases}
+&&\text{(velocidad de régimen del ESC)}\label{eq:esc}\\
+T_m\,\dot\Omega &= \omega_{ss} - \Omega &&\text{(dinámica del rotor)}\label{eq:motor}\\
+T &= C_T\,\Omega^2,\qquad Q = C_M\,\Omega^2 &&\text{(empuje y par de arrastre)}\label{eq:TQ}
+\end{align}
+
+La recta \eqref{eq:esc} es lo que se mide en un banco poniendo escalones de
+acelerador y registrando las rpm en régimen; $T_m$ sale de la respuesta al
+escalón. Es la misma estructura que Powers, Mellinger y Kumar \cite{hb16}
+(p.~312) escriben como $\dot\omega = k_m(\omega^{des}-\omega)$, con la recta
+del ESC delante. Para el PAE-X450, $C_R=1148$~rad/s, $\omega_b=-141.4$~rad/s,
+$T_m=0.02$~s y $\sigma_{dz}=0.05$.
+
+\begin{nota}[La zona muerta en el PAE-X450]
+Con $\omega_b<0$ la recta cruza cero en $\sigma_0=-\omega_b/C_R=0.123$. Por
+debajo de ese acelerador el ESC ya entrega velocidad nula por el
+$\max(0,\cdot)$, de modo que la zona muerta explícita $\sigma_{dz}=0.05$ no
+cambia nada en este vehículo: la zona muerta efectiva es $[0,\,0.123)$. El
+parámetro existe para los vehículos del catálogo cuyo ESC se modela sin
+desplazamiento.
+\end{nota}
+
+\paragraph{¿Por qué cuadrático?} Para una hélice de paso fijo en aire
+quieto, la teoría de cantidad de movimiento y los ensayos estáticos dan
+$T\propto\Omega^2$ y $Q\propto\Omega^2$ con buena aproximación. Quitian Niño
+\cite{quitian22}, midiendo rotores en banco en esta misma universidad,
+encontró que un ajuste $T=b\Omega^2+a\Omega+c$ es estadísticamente mejor;
+el simulador conserva la forma cuadrática pura porque hace lineal la
+asignación de control en $s_i=\Omega_i^2$ y porque es la forma que usan los
+datos de la fuente. Si al comparar con un banco real apareciera un sesgo
+sistemático a bajas revoluciones, este es el primer sospechoso.
+
+\subsection{Matriz de asignación}
+
+Empuje colectivo y momentos son lineales en $s_i=\Omega_i^2$
+(\cref{eq:tauB}):
+\begin{equation}
+\begin{bmatrix}T\\ \tau_x\\ \tau_y\\ \tau_z\end{bmatrix}
+= \underset{\scriptscriptstyle B}{\begin{bmatrix}
+C_T & C_T & C_T & C_T\\
+-y_1C_T & -y_2C_T & -y_3C_T & -y_4C_T\\
+x_1C_T & x_2C_T & x_3C_T & x_4C_T\\
+e_1C_M & e_2C_M & e_3C_M & e_4C_M
+\end{bmatrix}}
+\begin{bmatrix}s_1\\ s_2\\ s_3\\ s_4\end{bmatrix}.
+\label{eq:B}
+\end{equation}
+Con los rotores de la \cref{tab:rotores} y $aC_T=1.758\times10^{-6}$:
+\begin{equation}
+B_{\text{PAE-X450}}=\begin{bmatrix}
+1.105 & 1.105 & 1.105 & 1.105\\
+-0.1758 & 0.1758 & 0.1758 & -0.1758\\
+0.1758 & -0.1758 & 0.1758 & -0.1758\\
+0.01779 & 0.01779 & -0.01779 & -0.01779
+\end{bmatrix}\times10^{-5}.
+\end{equation}
+Su número de condición es \val{condB} y $\max|BB^{-1}-I|=\val{eBinv}$. La
+matriz se invierte una vez al construir el mezclador (\cod{Mixer.\_\_init\_\_});
+en el lazo solo se multiplican columnas de $B^{-1}$. El paso inverso de
+$s_i$ a acelerador usa la recta del ESC en régimen,
+\begin{equation}
+\sigma_i=\sat_{[0,1]}\!\left(\frac{\sqrt{s_i}-\omega_b}{C_R}\right)
+\quad(\sigma_i=0 \text{ si } s_i\approx0),
+\label{eq:escinv}
+\end{equation}
+igual que un autopiloto real, que tampoco conoce la velocidad instantánea
+de los rotores.
+
+\paragraph{Comprobación de signos.} Pidiendo el empuje de hover más un
+momento de $+0.2$~N·m en cada eje (\cref{tab:signos}), los motores que suben
+son los que deben subir, y el momento que resulta al pasar las velocidades
+de régimen por $B$ es exactamente el pedido.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Aceleradores (M1, M2, M3, M4) para $T=mg$ y un momento positivo en
+un eje. El momento recuperado con $B$ coincide con el pedido a 4 cifras.}
+\label{tab:signos}
+\begin{tabular}{lll}
+\toprule
+Momento pedido & $\sigma$ (M1 FR, M2 BL, M3 FL, M4 BR) & Lectura \\
+\midrule
+$\tau_x=+0.2$~N·m & \val{sigroll} & suben los izquierdos: ala derecha abajo \\
+$\tau_y=+0.2$~N·m & \val{sigpitch} & suben los delanteros: morro arriba \\
+$\tau_z=+0.05$~N·m & \val{sigyaw} & suben los CCW: morro a la derecha \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Desaturación por prioridades}
+
+Cuando la combinación pedida no cabe en $s_i\in[0,\Omega_{max}^2]$, algo hay
+que sacrificar. El mezclador (\cod{Mixer.allocate}) lo hace con la misma
+prioridad que PX4: primero se protege la actitud en roll y pitch (lo que
+mantiene al dron derecho), después el empuje y al final la guiñada, que es
+el eje menos crítico y el más débil. Separando
+$\vect s=\vect s_T+\vect s_{RP}+\vect s_Y$ en las contribuciones de cada
+columna de $B^{-1}$:
+
+\begin{enumerate}
+\item Si el rango de $\vect s_{RP}$ (máximo menos mínimo) excede
+$\Omega_{max}^2$, ni con el colectivo ideal cabe: se escala
+$\vect s_{RP}\leftarrow k_{rp}\vect s_{RP}$, $k_{rp}=\Omega_{max}^2/\text{rango}$.
+\item Se desplaza el colectivo con un mismo $\Delta s$ en los cuatro motores
+para que $\vect s_T+k_{rp}\vect s_{RP}$ quede dentro de $[0,\Omega^2_{max}]$.
+Esto sacrifica empuje, no actitud.
+\item Se agrega la guiñada con el mayor $k_y\in[0,1]$ que no saque a ningún
+motor del intervalo.
+\end{enumerate}
+
+Dos casos de la verificación (bloque C) lo muestran. Con empuje del 90~\%
+del máximo, $\tau_x=3$~N·m y $\tau_z=0.3$~N·m, el resultado es
+$\sigma=(\val{desatSig})$: el roll se cumple completo
+($\tau_x=\val{desatTx}$~N·m), el colectivo baja \val{desatShift}~N (de 40.3 a
+\val{desatT}~N) y la guiñada se anula ($k_y=\val{desatKy}$). En el extremo
+opuesto, con empuje del 30~\% del peso y $\tau_x=1$~N·m, el mezclador
+\emph{sube} el colectivo $\val{lowShift}$~N para poder crear el momento,
+$\sigma=(\val{lowSig})$. Ese segundo caso es la razón física por la que un
+multirrotor pierde autoridad de actitud en descensos rápidos con los motores
+cerca del ralentí: no hay colectivo del cual restar. Los factores $k_{rp}$,
+$k_y$ y el desplazamiento de empuje se publican en la telemetría.
+
+\subsection{Momentos máximos}
+
+El lazo de tasa entrega un momento normalizado $u\in[-1,1]$ por eje, que se
+convierte en N·m multiplicando por el momento máximo del eje
+(\cod{VehicleParams.max\_torque}): los rotores que empujan a favor a fondo y
+los que empujan en contra en cero,
+\begin{equation}
+\tau_{x,max}=\sum_{y_i<0}|y_i|\,C_T\Omega_{max}^2=\val{taumaxR}~\text{N·m},\qquad
+\tau_{z,max}=\sum_{e_i>0}C_M\Omega_{max}^2=\val{taumaxY}~\text{N·m}.
+\label{eq:taumax}
+\end{equation}
+La guiñada tiene \val{tauRY} veces menos autoridad que el roll. No se fijó a
+mano: sale del cociente $C_M/(aC_T)$, y explica por qué en cualquier
+multirrotor el yaw es el eje lento.

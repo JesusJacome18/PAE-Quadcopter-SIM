@@ -1,0 +1,46 @@
+{
+  "formato": "pae-quadcopter-sim/escenario",
+  "version": 1,
+  "titulo": "Comparación de los cinco controladores",
+  "nivel": "Avanzado",
+  "duracion_min": 5,
+  "descripcion": "La misma figura en 8, volada por PID, MPC, MPC no lineal, RL y MPC + RL con idéntico vehículo, estimador y semilla de ruido.",
+  "aprenderas": [
+    "Cómo se arma una comparación justa entre controladores",
+    "Leer la tabla de métricas: RMSE, error máximo, esfuerzo y cómputo",
+    "El costo de cómputo del MPC no lineal"
+  ],
+  "pasos": [
+    "Pulse Comparar en la sección Comparar controladores; la simulación en vivo está en pausa.",
+    "Espere a que termine la barra de progreso; cada controlador aparece al terminar su corrida.",
+    "Revise la pestaña Comparación: curvas superpuestas y tabla con el mejor valor en negrita."
+  ],
+  "observa": "Las cinco curvas casi se superponen en la vista superior; las diferencias están en la tabla. Mire también la columna Cómputo: el MPC no lineal resuelve una optimización en cada paso de control.",
+  "resultado_esperado": "RMSE 3D y, entre paréntesis, error máximo: MPC 0.0137 m (0.028), MPC no lineal 0.0142 m (0.028), PID 0.0169 m (0.032), MPC + RL 0.0174 m (0.032) y RL puro 0.0502 m (0.084). El cómputo por paso va de 0.37 ms (PID) a 1.76 ms (MPC no lineal) en la máquina de desarrollo; en otra computadora esos tiempos cambian. La comparación completa tardó unos 45 s.",
+  "pagina": "trayectorias",
+  "iniciar": false,
+  "config": {
+    "vehiculo": "pae_x450",
+    "modo": "actitud",
+    "ganancias": "simc",
+    "trayectoria": {
+      "tipo": "lemniscate",
+      "parametros": {}
+    },
+    "controlador": {
+      "tipo": "pid",
+      "parametros": {}
+    }
+  },
+  "interfaz": {
+    "comparacion": {
+      "controladores": [
+        "pid",
+        "mpc",
+        "nmpc",
+        "rl",
+        "mpc_rl"
+      ]
+    }
+  }
+}

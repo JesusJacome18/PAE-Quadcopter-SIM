@@ -1,0 +1,35 @@
+{
+  "formato": "pae-quadcopter-sim/escenario",
+  "version": 1,
+  "titulo": "Figura en 8 con MPC",
+  "nivel": "Intermedio",
+  "duracion_min": 2,
+  "descripcion": "El MPC lineal con previsión sigue una lemniscata de 4 m × 2 m a 1.5 m de altura, dos vueltas de 10 s.",
+  "aprenderas": [
+    "Cómo un controlador de posición va sobre el lazo de actitud",
+    "Leer la vista 3D, la vista superior y el error de seguimiento",
+    "Qué significa el RMSE de una corrida"
+  ],
+  "pasos": [
+    "La simulación arranca sola desde el punto inicial de la trayectoria.",
+    "Gire la vista 3D arrastrando con el ratón.",
+    "Al terminar, lea RMSE y error máximo en la franja de lecturas."
+  ],
+  "observa": "En la vista 3D y en la vista superior, la curva blanca (real) se monta sobre la magenta (referencia). El error de seguimiento se mantiene en pocos centímetros; el mayor aparece en el arranque, cuando el dron empieza a acelerar.",
+  "resultado_esperado": "Al completar los 23 s de la trayectoria, RMSE de 0.014 m y error máximo de 0.028 m (hacia t = 1.7 s). Sin interfaz, la corrida tardó unos 10 s de reloj en la máquina de desarrollo.",
+  "pagina": "trayectorias",
+  "iniciar": true,
+  "config": {
+    "vehiculo": "pae_x450",
+    "modo": "trayectoria",
+    "ganancias": "simc",
+    "trayectoria": {
+      "tipo": "lemniscate",
+      "parametros": {}
+    },
+    "controlador": {
+      "tipo": "mpc",
+      "parametros": {}
+    }
+  }
+}

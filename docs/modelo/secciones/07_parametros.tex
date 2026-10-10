@@ -1,0 +1,147 @@
+\section{Parámetros del vehículo de referencia y del catálogo}
+\label{sec:parametros}
+
+\subsection{Por qué el PAE-X450}
+
+Un modelo con ecuaciones correctas y parámetros inventados no sirve para
+sintonizar nada. La 2.ª edición armaba su vehículo con números de distintas
+tesis, y la \cref{sec:proposito} mostró que ni siquiera dentro de una misma
+tesis eran coherentes. La 3.ª edición adopta como vehículo por defecto un
+cuadricóptero en X de clase 450~mm y 1.4~kg (motores sin escobillas, ESC y
+hélices de unos 10~pulgadas: el ``dron mediano normal'' de laboratorio) cuyos
+parámetros vienen \emph{todos} de una misma fuente: el modelo por defecto de
+CopterSim, el simulador del grupo de Quan Quan en la Universidad de Beihang,
+base de la plataforma RflySim y de los libros \cite{qq17,qq20}.
+
+La fuente primaria es el archivo de inicialización del modelo Simulink,
+\cod{Init.m}, del repositorio \cod{github.com/XunhuaDai/CopterSim}, commit
+\cod{0d14487f} (25 de julio de 2019) \cite{cs19}, en el que cada parámetro
+viene comentado. Los valores de la \cref{tab:pae} se cotejaron contra ese
+archivo el 4 de octubre de 2026 y coinciden dígito a dígito.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Parámetros del PAE-X450 (\cod{vehicles.PAE\_X450}). Fuente: \cod{Init.m}
+de CopterSim \cite{cs19}, modelo por defecto de \cite{qq20,qq17}, salvo donde
+se indica.}
+\label{tab:pae}
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.9cm}l>{\raggedright\arraybackslash}p{2.6cm}l>{\raggedright\arraybackslash}X}
+\toprule
+Parámetro & Símbolo & Valor & Unidad & Nombre en \cod{Init.m} / nota \\
+\midrule
+Masa & $m$ & 1.4 & kg & \cod{uavMass} \\
+Brazo (centro a eje del motor) & $\ell$ & 0.225 & m & \cod{uavR} \\
+Inercias & $J_{xx},J_{yy},J_{zz}$ & 0.0241, 0.0239, 0.0386 & kg·m$^2$ & \cod{uavJxx/yy/zz}; productos de inercia nulos \\
+Coeficiente de empuje & $C_T$ & $1.105\times10^{-5}$ & N/(rad/s)$^2$ & \cod{rotorCt} \\
+Coeficiente de par & $C_M$ & $1.779\times10^{-7}$ & N·m/(rad/s)$^2$ & \cod{rotorCm} \\
+Inercia rotor + hélice & $J_m$ & $1.287\times10^{-4}$ & kg·m$^2$ & \cod{motorJm} \\
+Pendiente del ESC & $C_R$ & 1148 & rad/s & \cod{motorCr} \\
+Ordenada del ESC & $\omega_b$ & $-141.4$ & rad/s & \cod{motorWb} \\
+Constante de tiempo del motor & $T_m$ & 0.02 & s & \cod{motorT} \\
+Zona muerta del acelerador & $\sigma_{dz}$ & 0.05 & --- & \cod{motorMinThr} \\
+Arrastre horizontal & $C_{d,xy}$ & 0.055 & N/(m/s)$^2$ & \cod{uavCd} \\
+Arrastre vertical & $C_{d,z}$ & 0.055 & N/(m/s)$^2$ & \textbf{supuesto}: igual a $C_{d,xy}$ \\
+Amortiguamiento rotacional & $C_{Cm}$ & 0.0035, 0.0039, 0.0034 & N·m/(rad/s)$^2$ & \cod{uavCCm} \\
+Acelerador de hover declarado & --- & 0.609 & --- & \cod{BattHoverThr}; solo para comprobar \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{supuesto}[Lo que no viene de CopterSim]
+El arrastre vertical; el voltaje constante (CopterSim trae un modelo de
+batería que aquí no se implementa); y el punto de aplicación del arrastre:
+\cod{Init.m} declara una distancia vertical de 0.12~m entre el centro
+aerodinámico y el centro de masa (\cod{uavDearo}), que produciría un momento
+de cabeceo proporcional al arrastre. El simulador aplica el arrastre en el
+centro de masa y no modela ese momento (\cref{sec:limitaciones}).
+\end{supuesto}
+
+\subsection{Chequeos de consistencia}
+
+Un conjunto de parámetros tomado de una fuente puede tener erratas. La
+forma de detectarlas es cruzar cantidades que la fuente da por separado y
+que la física obliga a que coincidan. El bloque A de
+\cod{model\_verification.py} hace cinco cruces.
+
+\paragraph{Velocidad y acelerador de hover.} El rotor sostiene el hover
+cuando $4C_T\Omega_h^2=mg$:
+\begin{equation}
+\Omega_h=\sqrt{\frac{mg}{4C_T}}=\val{wh}~\text{rad/s}\ (\val{whrpm}~\text{rpm}),\qquad
+\sigma_h=\frac{\Omega_h-\omega_b}{C_R}=\val{sigmah}.
+\label{eq:hover}
+\end{equation}
+\cod{Init.m} declara por separado un acelerador de hover de
+\val{sigmahd}. Que el valor calculado desde masa, $C_T$ y la recta del ESC
+coincida con el declarado a la tercera cifra indica que propulsor y masa son
+coherentes entre sí: es exactamente la prueba que el F450 de Jiřinec no pasa.
+
+\paragraph{Coeficiente de empuje adimensional.} La literatura de hélices
+reporta el coeficiente estático $C_T'=T/(\rho n^2D^4)$, con $n$ en rev/s. Con
+$\Omega=2\pi n$, $C_T'=4\pi^2C_T/(\rho D^4)$. Suponiendo la hélice de
+9.4~pulgadas (0.239~m) que monta un F450 (supuesto: \cod{Init.m} no declara
+el diámetro) y $\rho=1.225$~kg/m$^3$, resulta $C_T'=\val{CTad}$ y
+$C_P'=2\pi C_Q'=\val{CPad}$. Son valores del orden de los que publican las
+bases de ensayos estáticos para hélices de dos palas de ese tamaño (UIUC
+Propeller Data Site \cite{uiuc}), lo que descarta un error de unidades en
+$C_T$ y $C_M$, por ejemplo una confusión entre rpm y rad/s, que cambiaría el
+coeficiente en un factor $(60/2\pi)^2\approx91$.
+
+\paragraph{Relación par/empuje.} $C_M/C_T=\val{CmCt}$~m, típica de
+hélices de 9--10~pulgadas; de ella sale la autoridad de guiñada.
+
+\paragraph{Empuje máximo.} Con $\sigma=1$, $\Omega_{max}=C_R+\omega_b=\val{wmax}$~rad/s
+(\val{wmaxrpm}~rpm) y cada rotor da $C_T\Omega_{max}^2=\val{Tmax}$~N
+(\val{Tmaxkgf}~kgf). La relación empuje/peso es $\val{TW}$, normal para un
+F450 con batería 4S y suficiente para maniobrar con margen.
+
+\paragraph{Frecuencia de paso de pala.} Con dos palas, la vibración por
+desbalance aparece a $f_{bp}=2\Omega/(2\pi)$: \val{fbp}~Hz en hover y
+\val{fbpmax}~Hz a acelerador máximo. Este número gobierna el diseño de los
+filtros (\cref{sec:sensores,sec:filtros}).
+
+\subsection{Otros vehículos del catálogo}
+
+El catálogo (\cod{VEHICLES}) conserva cuatro vehículos más, útiles para
+mostrar que el método de sintonía se adapta solo cuando cambia la física. La
+\cref{tab:catalogo} resume sus parámetros y las cantidades derivadas
+calculadas por el mismo código.
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\caption{Catálogo de vehículos (valores y derivados calculados por \cod{vehicles.py}).}
+\label{tab:catalogo}
+\begin{tabular}{lccccc}
+\toprule
+ & \val{catHead} \\
+\midrule
+\val{catT}
+\bottomrule
+\end{tabular}
+\end{table}
+
+Las fuentes y advertencias de cada uno están en sus campos \cod{source} y
+\cod{caveats}:
+\begin{itemize}
+\item \textbf{Jiřinec (+)} \cite{jirinec11}: inercias (ec.~4.7), $b$ (ec.~4.9),
+$d$ (p.~28), motor $0.7/(0.1s+1)$ (ec.~4.6), brazo 0.214~m. Corregido a
+1.321~kg y bastidor + (\cref{sec:proposito}). ESC lineal sin
+desplazamiento y empuje/peso 3.0 son supuestos; el arrastre lineal
+0.25~kg/s viene de Luukkonen.
+\item \textbf{Luukkonen} \cite{luukkonen11} (tabla~1, que toma los valores de
+Tayebi y McGilvray): rotores instantáneos en la fuente, por lo que
+$T_m=0.05$~s es supuesto.
+\item \textbf{NUS KayLion} \cite{hb11}: el único con todo medido en banco
+(ecs.~11.18--11.27), incluida $T_m=0.0821$~s. Empuje/peso 2.0 deducido de
+su banco.
+\item \textbf{AscTec Hummingbird} \cite{hb16} (tablas~16.1--16.2): sus
+coeficientes venían en N/rpm$^2$; convertidos dividiendo por
+$(2\pi/60)^2$ dan $k_F=\val{hbkF}$ y $k_M=\val{hbkM}$ en unidades SI.
+\end{itemize}
+En los cuatro, el ESC se modela como recta sin desplazamiento
+($\omega_b=0$) con $C_R$ elegido para la relación empuje/peso indicada, lo
+que fija $\sigma_h=1/\sqrt{T/W}$. Para estos vehículos el acelerador de
+hover es una consecuencia de ese supuesto, no un dato.

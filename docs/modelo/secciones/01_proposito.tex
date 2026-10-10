@@ -1,0 +1,139 @@
+\section{Propósito, alcance y cambios respecto de la 2.ª edición}
+\label{sec:proposito}
+
+\subsection{Para qué sirve este documento}
+
+La pregunta de investigación del proyecto se formuló así:
+\emph{técnicas de sintonía en entornos simulados como punto de partida en la
+sintonía de drones reales}. Una sintonía hecha en simulación solo transfiere
+al vehículo real si el simulador contiene, con números creíbles, los
+fenómenos que limitan al controlador: el rezago de los motores, la saturación
+de los actuadores, el acoplamiento entre inclinación y traslación, el ruido y
+la vibración que ven los sensores, el error del estimador de actitud y el
+viento. Este documento describe uno por uno esos fenómenos tal como están
+programados en el paquete \cod{quadsim/}, explica por qué se modelaron así y
+qué se dejó por fuera, y muestra la evidencia numérica de que el código hace
+lo que dicen las ecuaciones.
+
+La regla de redacción es simple. Cada ecuación de este texto corresponde a una
+línea de código identificable (se cita el archivo y la función), y cada cifra
+presentada como resultado sale del guion
+\cod{experiments/model\_verification.py}, que la calcula, la imprime y la
+guarda en \cod{docs/modelo/resultados\_verificacion.json}. Lo que es un
+supuesto aparece en recuadros naranjas; lo que es un detalle de
+implementación que conviene conocer antes de presentar el proyecto, en recuadros
+azules.
+
+\subsection{Alcance}
+
+El simulador modela un cuadricóptero como un sólido rígido de seis grados de
+libertad con cuatro rotores de dinámica propia (17 estados), en marco
+inercial NED y marco cuerpo FRD, con:
+
+\begin{itemize}
+\item propulsor ESC + motor sin escobillas de primer orden, empuje y par
+cuadráticos, zona muerta y asignación de control con desaturación por
+prioridades;
+\item aerodinámica del fuselaje (arrastre cuadrático y amortiguamiento
+rotacional), viento como velocidad relativa del aire y efecto suelo opcional;
+\item sensores con ruido de hoja de datos, sesgo, deriva, vibración a la
+frecuencia de paso de pala, retardos y tasas de muestreo propias;
+\item filtros biquad sobre el giroscopio, tres estimadores de actitud
+(Madgwick, Mahony, EKF) y un filtro de Kalman de navegación;
+\item el control de bajo nivel en cascada (ángulo $\to$ tasa $\to$ momento
+normalizado) con ganancias calculadas del modelo por las reglas SIMC;
+\item cinco controladores de posición/trayectoria (PID en cascada, MPC lineal,
+MPC no lineal, aprendizaje por refuerzo puro y MPC con residuo aprendido) y
+siete generadores de trayectoria;
+\item perturbaciones: viento medio, turbulencia de Dryden, ráfaga $1-\cos$,
+interferencia electromagnética en el magnetómetro, cambio de carga útil y
+pérdida de eficiencia de un motor.
+\end{itemize}
+
+No modela la batería (el voltaje es constante), la elasticidad del bastidor,
+la aerodinámica del rotor en vuelo de avance (\emph{blade flapping}, arrastre
+inducido) ni la dinámica eléctrica del motor. La \cref{sec:limitaciones}
+discute qué consecuencias tiene cada omisión.
+
+\subsection{Qué cambió frente a la 2.ª edición}
+
+La 2.ª edición del modelo (\cod{PAE\_Quadcopter\_GCS/simulator/physical\_model.py})
+cumplió su papel didáctico, pero tenía cuatro limitaciones de fondo que
+impedían usarla para el objetivo de investigación actual. La
+\cref{tab:cambios} las resume.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Diferencias de fondo entre la 2.ª y la 3.ª edición del modelo.}
+\label{tab:cambios}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
+\toprule
+Aspecto & 2.ª edición & 3.ª edición (este documento) \\
+\midrule
+Dinámica de rotación & Linealizada en hover y desacoplada por eje: $I\dot\omega=\tau-b_\omega\omega$, $\dot\theta=\omega$ por separado para roll, pitch y yaw & Newton--Euler completa con $\vect\omega\times J\vect\omega$, par giroscópico de los rotores y cuaternión (\cref{sec:dinamica}) \\
+Traslación & Solo altura; inclinarse no desplazaba al dron y mantener una inclinación no costaba momento & Traslación 3D en NED con el empuje proyectado por la actitud completa \\
+Integración & Euler semi-implícito a la tasa del lazo (500~Hz) & RK4 a \val{physHz}~Hz con el mando retenido entre muestras de control (\cref{sec:integracion}) \\
+Marcos & FLU (z arriba), yaw como rumbo con signo invertido a mano & NED/FRD como PX4 y Quan Quan: yaw es rumbo de forma natural \\
+Sensores y estimación & Ruido sumado al ángulo verdadero & IMU, magnetómetro, barómetro y posición externa con vibración; Madgwick, Mahony, EKF y Kalman de navegación \\
+Vehículo por defecto & F450 de Jiřinec, 1.474~kg, en X & PAE-X450 (datos completos de CopterSim/RflySim, \cref{sec:parametros}) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Problemas del catálogo anterior.} La revisión del vehículo de
+Jiřinec destapó dos errores que conviene declarar porque un evaluador atento
+los puede encontrar. El primero es de masa. Jiřinec identifica su coeficiente
+de empuje con la condición de hover $b=mg/(4\omega_0^2)$, con
+$b=1.5108\times10^{-5}$~N/(rad/s)$^2$ y $\omega_0=463.1$~rad/s (su ec.~4.9).
+Despejando la masa de esa misma ecuación se obtiene
+$m = 4b\omega_0^2/g = \val{jirM}$~kg, no los 1.474~kg de la suma de
+componentes de su tabla~4.2. Con 1.474~kg el hover exigiría
+$\omega_0=\val{jirW}$~rad/s: los números de la tesis no son coherentes entre
+sí, y la 2.ª edición usaba la combinación incoherente. El segundo error es de
+geometría: las ecuaciones de momento de Jiřinec (sec.~2.2.4) están escritas
+para bastidor en cruz (+), y la 2.ª edición lo cargaba en X. La 3.ª edición
+corrige ambos (\cod{JIRINEC\_PLUS} en \cod{vehicles.py}, masa 1.321~kg, bastidor
++) y, sobre todo, cambia el vehículo de referencia por uno cuyos parámetros
+forman un conjunto completo y verificable: el PAE-X450.
+
+\paragraph{Lo que se conserva.} La cascada de control y su sintonía SIMC, la
+convención de momento normalizado de PX4 en el lazo de tasa, el modelo de
+actuador de primer orden y los filtros biquad pasan sin cambios conceptuales
+de una edición a otra. Lo nuevo es la planta sobre la que actúan.
+
+\paragraph{Correcciones del núcleo durante la verificación.} Al escribir
+este documento, la verificación numérica encontró problemas en el propio
+núcleo de la 3.ª edición que se corrigieron antes de cerrarlo (5 de octubre
+de 2026): el acelerómetro llegaba sin filtrar al estimador de actitud y la
+vibración se rectificaba en un sesgo de inclinación; el arranque en el aire
+no inicializaba los retardos de los sensores, el estimador ni la covarianza
+de navegación; y varios valores por defecto (derivativo del lazo de tasa,
+filtro del giroscopio, ruidos del EKF, $\beta$ de Madgwick, integral del PID
+de posición, estimador por defecto) se ajustaron con los barridos. El texto
+describe el código corregido; las cifras históricas obtenidas con el núcleo
+anterior se señalan como tales donde aparecen.
+
+\paragraph{Revisión externa.} El 9 de octubre de 2026 una revisión técnica
+independiente leyó el código y los resultados con instrucciones de buscar
+errores. Sus hallazgos cambiaron varias partes de este documento. La
+compensación de aceleración del AHRS resultó autorreferente cuando no hay
+sensor de posición (\cref{sec:leishman}). Los retardos del ESC y del cómputo,
+omitidos, pesan más de lo que la edición anterior estimaba
+(\cref{sec:integracion}). La lectura del banco de controladores sobrevaloraba
+lo que tres semillas permiten afirmar, y atribuía a la brecha de modelo un
+error del aprendizaje por refuerzo que en su mayor parte ya existe en el
+entorno de entrenamiento (\cref{sec:banco}). Lo que se pudo corregir en el
+código se corrigió; lo que depende de medir el dron real quedó en la
+\cref{sec:limitaciones}, con la lista de datos pendientes.
+
+\begin{nota}[Cómo reproducir las cifras de este documento]
+Desde la raíz del repositorio, \cod{bash docs/modelo/build.sh --verify}
+corre la verificación numérica completa (bloques A a M, alrededor de un
+minuto en un núcleo), regenera las figuras y \cod{valores.tex}, compila este
+PDF y exporta \cod{docs/MODELO\_MATEMATICO.md}. Sin \cod{--verify} reutiliza
+el último \cod{resultados\_verificacion.json}. Las cifras de los bancos de
+controladores (\cref{sec:banco}) y de los barridos (\cref{sec:barridos})
+vienen de sus propios guiones, citados en cada caso, porque requieren
+cientos de corridas.
+\end{nota}

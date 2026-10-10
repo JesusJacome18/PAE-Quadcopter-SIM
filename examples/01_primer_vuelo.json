@@ -1,0 +1,49 @@
+{
+  "formato": "pae-quadcopter-sim/escenario",
+  "version": 1,
+  "titulo": "Primer vuelo y escalón de roll",
+  "nivel": "Básico",
+  "duracion_min": 2,
+  "descripcion": "El dron flota a 1.5 m con la sintonía SIMC. A los 2 s recibe un escalón de 10° en roll y a los 6 s uno de 0.5 m en altura; la página mide cada respuesta.",
+  "aprenderas": [
+    "Leer las gráficas: verdad, estimado y referencia",
+    "Qué miden subida, sobrepaso y asentamiento",
+    "Cómo responden los motores a una orden de actitud"
+  ],
+  "pasos": [
+    "La simulación arranca sola. Mire la gráfica Roll: la referencia magenta salta a 10° en t = 2 s.",
+    "Al terminar cada ventana, las métricas aparecen bajo Prueba de escalón y en la tabla.",
+    "Pruebe sus propios escalones con otro eje o amplitud y pulse Aplicar escalón."
+  ],
+  "observa": "En la gráfica Roll, la curva blanca (ángulo verdadero) sube hasta la referencia magenta sin pasarse; la verde es la tasa angular. El horizonte artificial se inclina y en las barras de motores dos rotores aceleran mientras los otros dos frenan.",
+  "resultado_esperado": "Escalón de roll de 10°: subida 10–90 % de 0.15 s y sobrepaso de 0 %. El ángulo verdadero se queda 0.75° por debajo de la referencia, por eso el asentamiento aparece como «> 3.0» en ámbar: el lazo cumple con lo que cree el estimador, que se equivoca un poco mientras el dron acelera de lado (el ejemplo 04 lo explica). Escalón de altura de 0.5 m: subida de 1.01 s, sin sobrepaso, asentamiento de 3.0 s y error final de 5 mm.",
+  "pagina": "actitud",
+  "iniciar": true,
+  "config": {
+    "vehiculo": "pae_x450",
+    "modo": "actitud",
+    "ganancias": "simc",
+    "referencias": {
+      "roll": 0,
+      "pitch": 0,
+      "yaw": 0,
+      "alt": 1.5
+    }
+  },
+  "acciones": [
+    {
+      "t": 2.0,
+      "accion": "escalon",
+      "eje": "roll",
+      "amplitud": 10,
+      "ventana": 3
+    },
+    {
+      "t": 6.0,
+      "accion": "escalon",
+      "eje": "alt",
+      "amplitud": 0.5,
+      "ventana": 4
+    }
+  ]
+}

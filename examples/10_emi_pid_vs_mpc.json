@@ -1,0 +1,51 @@
+{
+  "formato": "pae-quadcopter-sim/escenario",
+  "version": 1,
+  "titulo": "Interferencia magnética: PID frente a MPC",
+  "nivel": "Avanzado",
+  "duracion_min": 4,
+  "descripcion": "Interferencia de 15 µT en el magnetómetro durante un círculo de 1.5 m de radio. El rumbo estimado se desvía y los dos controladores lo sufren distinto.",
+  "aprenderas": [
+    "Cómo la interferencia del magnetómetro se convierte en error de rumbo",
+    "Por qué un error de rumbo degrada el seguimiento de posición",
+    "Comparar dos controladores en igualdad de condiciones"
+  ],
+  "pasos": [
+    "La simulación arranca con el PID; mire Error de rumbo estimado en la página Perturbaciones.",
+    "Pause (F5), vuelva a Trayectorias y pulse Comparar: PID y MPC ya están marcados.",
+    "Desmarque Activar interferencia en Perturbaciones y compare otra vez para tener la referencia; luego pruebe con 25 µT."
+  ],
+  "observa": "En Perturbaciones, el error de rumbo estimado crece con la corriente de los motores. Ese error gira las órdenes de aceleración del controlador de posición y el círculo se deforma.",
+  "resultado_esperado": "Con 15 µT el rumbo estimado se aparta hasta 13.7° del verdadero. En la comparación, el PID pasa de 0.0145 m de RMSE sin interferencia a 0.133 m con ella; el MPC, de 0.0128 a 0.026 m. Con 25 µT los dos pierden el círculo (RMSE de 2.2 m el PID y 2.1 m el MPC).",
+  "pagina": "trayectorias",
+  "iniciar": true,
+  "config": {
+    "vehiculo": "pae_x450",
+    "modo": "trayectoria",
+    "ganancias": "simc",
+    "trayectoria": {
+      "tipo": "circle",
+      "parametros": {}
+    },
+    "controlador": {
+      "tipo": "pid",
+      "parametros": {}
+    },
+    "perturbaciones": {
+      "emi": {
+        "activa": true,
+        "ganancia_uT": 15.0,
+        "pulsos_hz": 0.0,
+        "pulsos_uT": 30.0
+      }
+    }
+  },
+  "interfaz": {
+    "comparacion": {
+      "controladores": [
+        "pid",
+        "mpc"
+      ]
+    }
+  }
+}

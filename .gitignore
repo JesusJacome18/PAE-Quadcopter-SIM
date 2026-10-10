@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+# LaTeX intermedios
+docs/modelo/*.aux
+docs/modelo/*.log
+docs/modelo/*.toc
+docs/modelo/*.out
+docs/modelo/main.pdf
+docs/modelo/__pycache__/
+# corridas locales
+experiments/results/mi_banco/
+experiments/results/model_verification/
+
+# compilacion
+build/
+dist/
+QuadSIM-PRIMBIO-win64.zip

@@ -1,0 +1,44 @@
+{
+  "formato": "pae-quadcopter-sim/escenario",
+  "version": 1,
+  "titulo": "Estimadores y compensación de aceleración",
+  "nivel": "Intermedio",
+  "duracion_min": 3,
+  "descripcion": "El dron se inclina 15° en roll durante 4 s y acelera de lado. Sin compensar la aceleración, el acelerómetro deja de señalar la gravedad y el estimador Mahony se equivoca.",
+  "aprenderas": [
+    "Por qué un acelerómetro no mide la gravedad cuando el dron acelera",
+    "Qué corrige la compensación de aceleración (ATT_ACC_COMP en PX4)",
+    "Comparar estimadores con la misma maniobra"
+  ],
+  "pasos": [
+    "La simulación arranca sola: en t = 2 s se ordena roll = 15° y en t = 6 s se vuelve a 0°.",
+    "Mire la gráfica Actitud: verdad y estimado (eje Roll).",
+    "Marque Compensar aceleración cinemática y pulse Ctrl+R para repetir. Pruebe también Madgwick y EKF."
+  ],
+  "observa": "En Actitud: verdad y estimado, la curva cian (lo que cree Mahony) se queda cerca de 15° mientras la blanca (el ángulo real) sigue creciendo: el controlador cumple con un ángulo que no es el verdadero. En la página Actitud se ve al dron irse de lado.",
+  "resultado_esperado": "Sin compensación, con Mahony, el error de estimación llega a 17.9° y el roll verdadero a unos 31° cuando el estimado marca 15°. Con la compensación activa, el error máximo baja a 1.5° y el roll verdadero se queda en 14.2°. Madgwick, con su β pequeño, se equivoca menos sin compensar (2.7°) y 1.0° con ella; el EKF se parece a Mahony (16.9° sin compensar y 1.4° con ella).",
+  "pagina": "sensores",
+  "iniciar": true,
+  "config": {
+    "vehiculo": "pae_x450",
+    "modo": "actitud",
+    "ganancias": "simc",
+    "estimador": {
+      "tipo": "mahony",
+      "compensar_aceleracion": false,
+      "usar_magnetometro": true
+    }
+  },
+  "acciones": [
+    {
+      "t": 2.0,
+      "accion": "referencia",
+      "roll": 15
+    },
+    {
+      "t": 6.0,
+      "accion": "referencia",
+      "roll": 0
+    }
+  ]
+}

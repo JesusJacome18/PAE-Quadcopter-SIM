@@ -1,0 +1,64 @@
+{
+ "best_params": {
+  "estimator.mahony.kp": 1.0,
+  "estimator.mahony.ki": 0.0
+ },
+ "best": {
+  "point_id": "fca61accdd2b",
+  "params": {
+   "estimator.mahony.kp": 1.0,
+   "estimator.mahony.ki": 0.0
+  },
+  "is_baseline": false,
+  "phase": "diseno",
+  "cost_mean": 0.9655962173058252,
+  "cost_max": 0.9716673542866247,
+  "crash_rate": 0.0,
+  "cost": 0.9655962173058252,
+  "estimator.mahony.kp": "1",
+  "estimator.mahony.ki": "0",
+  "J[scenario.emi=False]": 0.9716673542866247,
+  "J[scenario.emi=True]": 0.9595250803250259,
+  "crash": 0.0,
+  "crash_t": NaN,
+  "est_err_rms_deg": 0.9845534384750001,
+  "est_roll_err_rms_deg": 1.147377056725,
+  "est_pitch_err_rms_deg": 0.749642651725,
+  "est_err_max_deg": 2.88233333025,
+  "est_yaw_err_rms_deg": 4.098757853675,
+  "est_yaw_err_max_deg": 5.9040041185500005,
+  "bias_err_dps": 0.37935793135,
+  "est_err_accel_deg": 1.0170115069999999,
+  "est_err_rms_deg_std": 0.26513141128474116,
+  "est_yaw_err_rms_deg_std": 0.10993828781355067,
+  "rank": 1
+ },
+ "baseline": {
+  "point_id": "baseline_10c7ced2c84e",
+  "params": {
+   "scenario.emi": true
+  },
+  "phase": "base",
+  "is_baseline": true,
+  "n_seeds": 2,
+  "estimator.mahony.kp": "base",
+  "estimator.mahony.ki": "base",
+  "scenario.emi": "True",
+  "crash": 0.0,
+  "crash_t": NaN,
+  "est_err_rms_deg": 1.4422126535,
+  "est_roll_err_rms_deg": 1.8053225019999999,
+  "est_pitch_err_rms_deg": 0.94908514825,
+  "est_err_max_deg": 4.4756285745,
+  "est_yaw_err_rms_deg": 8.3513663715,
+  "est_yaw_err_max_deg": 11.710776055,
+  "bias_err_dps": 0.3695475478,
+  "est_err_accel_deg": 1.4037966865,
+  "crash_rate": 0.0,
+  "error": null,
+  "est_err_rms_deg_std": 0.3416687534725573,
+  "est_yaw_err_rms_deg_std": 0.16797802773250947,
+  "cost": 1.0,
+  "rank": 14
+ }
+}

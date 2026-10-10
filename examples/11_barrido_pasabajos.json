@@ -1,0 +1,33 @@
+{
+  "formato": "pae-quadcopter-sim/escenario",
+  "version": 1,
+  "titulo": "Barrido rápido del pasa-bajos del giroscopio",
+  "nivel": "Intermedio",
+  "duracion_min": 2,
+  "descripcion": "Barre la frecuencia de corte (20 a 200 Hz) y el tipo de pasa-bajos del giroscopio con una sola réplica: 50 simulaciones de escalón de actitud.",
+  "aprenderas": [
+    "Cómo se arma y se lee un barrido de parámetros",
+    "El compromiso entre ruido y retardo de un filtro",
+    "Aplicar el mejor punto a la simulación en vivo"
+  ],
+  "pasos": [
+    "Pulse Ejecutar barrido (la simulación en vivo se pausa mientras tanto).",
+    "Lea el costo J por curva: cada color es un tipo de filtro.",
+    "Pulse Aplicar a la simulación y luego ▶ para ver volar la mejor configuración."
+  ],
+  "observa": "La gráfica principal dibuja el costo J contra la frecuencia de corte, una curva por tipo de filtro; J = 1 es la configuración por defecto. A la derecha, el frente de Pareto entre las dos métricas del escenario.",
+  "resultado_esperado": "51 simulaciones (50 puntos y la línea base) en unos 45 s con un proceso. El mejor punto fue un pasa-bajos de 20 Hz con Q = 1.2 y J = 0.729. La página lo marca como Borde porque cayó en el extremo del rango: antes de adoptarlo conviene ampliar el barrido hacia abajo y repetirlo con más réplicas.",
+  "pagina": "barridos",
+  "iniciar": false,
+  "config": {
+    "vehiculo": "pae_x450",
+    "modo": "actitud",
+    "ganancias": "simc"
+  },
+  "interfaz": {
+    "barrido": {
+      "preset": "gyro_lpf",
+      "replicas": 1
+    }
+  }
+}

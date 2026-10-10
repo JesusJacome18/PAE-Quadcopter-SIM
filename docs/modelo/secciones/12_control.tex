@@ -1,0 +1,225 @@
+\section{Control de bajo nivel}
+\label{sec:control}
+
+\subsection{Arquitectura en cascada}
+
+El control de actitud es una cascada de tres niveles, la misma de PX4, del
+firmware ESP32 del proyecto y de la descripción que hace Larotta
+\cite{larotta24} (p.~57) del Crazyflie (\cod{control/attitude.py}):
+\begin{equation}
+\underset{\scriptscriptstyle \text{actitud}}{(\phi,\theta,\psi)_{ref}}
+\xrightarrow{\ \text{P}\ }
+\underset{\scriptscriptstyle \text{tasas de Euler}}{(\dot\phi,\dot\theta,\dot\psi)_{ref}}
+\xrightarrow{\ W\ }
+\underset{\scriptscriptstyle \text{tasa}}{\vect\omega_{ref}}
+\xrightarrow{\ \text{PID}\ }
+\underset{\scriptscriptstyle \text{momento norm.}}{u\in[-1,1]^3}
+\xrightarrow{\ \times\tau_{max}\ }
+\vect\tau
+\xrightarrow{\ \text{mezclador}\ }\sigma_{1..4}.
+\label{eq:cascada}
+\end{equation}
+La cascada funciona porque las constantes de tiempo están separadas: el lazo
+de tasa ve un integrador rápido (\cref{eq:Krate}) y el de ángulo ve el lazo de
+tasa cerrado como un retardo corto. Powers, Mellinger y Kumar \cite{hb16}
+(p.~317) lo justifican desde la linealización en hover: a ángulos pequeños
+el control de actitud se desacopla del de posición y admite lazos anidados.
+
+\paragraph{Lazo de ángulo.} Proporcional puro sobre el error de cada ángulo
+de Euler (el de yaw envuelto a $(-\pi,\pi]$ para girar por el camino corto),
+más una prealimentación de tasa de yaw opcional:
+\begin{equation}
+\dot\phi_{ref}=K_{\phi}(\phi_{ref}-\hat\phi),\quad
+\dot\theta_{ref}=K_{\theta}(\theta_{ref}-\hat\theta),\quad
+\dot\psi_{ref}=K_{\psi}\operatorname{wrap}(\psi_{ref}-\hat\psi)+\dot\psi_{ff},
+\end{equation}
+convertido a tasa del cuerpo con \eqref{eq:W} y acotado a $220^\circ$/s en
+roll y pitch y $120^\circ$/s en yaw. No lleva integrador: el lazo de tasa
+interno ya tiene uno, y un segundo integrador sobre una planta integradora
+solo agrega sobreimpulso.
+
+\paragraph{Lazo de tasa.} Un PID por eje (\cod{control/pid.py}) cuya salida
+es el momento normalizado $u$; el momento físico es
+$\tau=u\,\tau_{max}$ con $\tau_{max}$ de \eqref{eq:taumax}. Normalizar es la
+convención de PX4 (\cod{MC\_ROLLRATE\_P} está en momento normalizado por
+rad/s) y tiene una ventaja práctica: las ganancias de vehículos con
+inercias que difieren en tres órdenes de magnitud quedan en el mismo rango
+numérico.
+
+\subsection{El PID discreto}
+
+En cada periodo $\Delta t$ (\cod{PID.update}):
+\begin{align}
+e_k&=r_k-y_k,\nonumber\\
+I_k&=\begin{cases}I_{k-1} & \text{si la salida está saturada y } e_k\,u_{k-1}>0\\
+\sat_{\pm i_{lim}/k_i}\!\big(I_{k-1}+e_k\Delta t\big) & \text{en otro caso}\end{cases}\label{eq:pid}\\
+d_k&=d_{k-1}+\alpha_d\Big(-\frac{y_k-y_{k-1}}{\Delta t}-d_{k-1}\Big),\qquad \alpha_d=\frac{\Delta t}{\tau_d+\Delta t},\ \tau_d=\frac{1}{2\pi f_d}\nonumber\\
+u_k&=\sat_{\pm u_{lim}}\big(k_pe_k+k_iI_k+k_dd_k+k_{ff}r_k\big).\nonumber
+\end{align}
+Cada protección responde a una falla real. La derivada sobre la
+\emph{medida}, y no sobre el error, evita el golpe derivativo cuando la
+referencia salta. El filtro del derivativo ($f_d=40$~Hz nominales en el
+lazo de tasa) evita que la vibración llegue amplificada a los motores. Se
+discretiza como en Betaflight, $\alpha=\Delta t/(\tau+\Delta t)$, y esa
+fórmula no da el corte nominal: a 500~Hz el corte efectivo es 32.4~Hz, con
+unos 4.9~ms de retardo en baja frecuencia. Se conserva por compatibilidad con
+las ganancias afinadas; la opción \cod{d\_filter\_exact} de la clase \cod{PID} usa
+$\alpha=1-e^{-2\pi f_d\Delta t}$, cuyo corte coincide con el nominal. Cuál de
+las dos usa el firmware del dron está por verificar. La integración
+condicional congela el integrador cuando la salida está saturada y el error
+empuja hacia el mismo lado (\emph{anti-windup}), y el límite absoluto
+$|k_iI|\le i_{lim}=0.3$ acota cuánto momento puede acumular. En el lazo de
+tasa $u_{lim}=1$.
+
+\subsection{Sintonía SIMC a partir del modelo}
+
+Las ganancias por defecto no están escritas a mano: \cod{control/tuning.py}
+las calcula con las reglas SIMC de Skogestad \cite{skogestad03} a partir de
+los parámetros físicos, de modo que cambiar de vehículo cambia las
+ganancias. SIMC tiene un solo parámetro libre, la constante de tiempo de
+lazo cerrado deseada $\tau_c$, con interpretación física directa; es más
+fácil de defender ante evaluadores que una sintonía por optimización de caja
+negra, y produce márgenes de robustez razonables por construcción
+(Ziegler--Nichols, en comparación, da sobreimpulsos del orden del 25~\%
+\cite{astrom04}).
+
+\paragraph{Modelo de diseño del lazo de tasa.} Linealizando en hover
+(\cref{sec:linealizacion}) cada eje es un integrador, y los retardos de la
+cadena se agrupan con la ``regla de la mitad'' de SIMC (la mitad de la
+constante de tiempo despreciada se suma al retardo):
+\begin{equation}
+\frac{\omega(s)}{u(s)}=\frac{K\,e^{-\theta s}}{s},\qquad
+K=\frac{\tau_{max}}{J},\qquad
+\theta=\underset{\scriptscriptstyle 2\ \text{ms}}{\tau_{IMU}}+\underset{\scriptscriptstyle 1\ \text{ms}}{\Delta t/2}+\underset{\scriptscriptstyle 3\ \text{ms}}{\tau_{filtro}}+\underset{\scriptscriptstyle 10\ \text{ms}}{T_m/2}=\val{theta}~\text{ms}.
+\label{eq:simc_planta}
+\end{equation}
+Esa es la cadena \emph{nominal} con la que se afinaron y documentaron las
+ganancias por defecto: 2~ms de IMU y 3~ms fijos de filtro, el retardo del
+Butterworth de 80~Hz de las primeras versiones (\val{gdBWo}~ms de retardo de
+grupo a 10~Hz, \cref{tab:filtros}). Con el filtro actual, \val{filtroDef}, el
+retardo de grupo a 10~Hz es \val{defGd10}~ms. \cod{chain\_delay} también sabe
+leer la cadena \emph{configurada} (\cod{Simulation.attitude\_chain}): retardo
+de la IMU de \cod{SensorConfig}, retardo de grupo de las etapas de filtro de
+cada eje evaluado en el cruce estimado (que depende de $\theta$ y se
+resuelve por punto fijo), retardo de cómputo y retardo del ESC. Con la
+configuración por defecto da $\theta=16.6$~ms en lugar de 16.0, y un $K_p$ de
+tasa 3.6~\% menor. La simulación solo usa la cadena configurada si se pide
+(\cod{SimConfig.gains\_from\_chain}), para que las ganancias no cambien en
+silencio durante un barrido de filtros, donde el filtro varía con las
+ganancias fijas. Dos cosas quedan fuera de $\theta$ por diseño: el filtro del
+derivativo, que solo afecta a esa rama, y la forma exacta del rezago del
+motor. La regla de la mitad reparte $T_m/2=10$~ms, cuando el motor de primer
+orden aporta en la frecuencia de cruce más fase que esa. Las ganancias SIMC
+son, por eso, un punto de partida; los márgenes reales del lazo se discuten
+en la \cref{sec:integracion}. Para el PAE-X450,
+$K_x=\val{KR}$, $K_y=\val{KP}$ y $K_z=\val{KY}$~rad/s$^2$.
+
+\paragraph{Reglas.} Para un integrador con retardo, SIMC da un PI
+\begin{equation}
+K_c=\frac{1}{K(\tau_c+\theta)},\qquad T_i=4(\tau_c+\theta),\qquad k_i=\frac{K_c}{T_i},
+\qquad \tau_c=\theta .
+\label{eq:simc}
+\end{equation}
+La elección $\tau_c=\theta$ es la recomendación ``ajustada'' de Skogestad
+(margen de ganancia $\approx3$, margen de fase $\approx47^\circ$). El código
+agrega un derivativo en roll y pitch, $k_d=K_c\,\theta$ (es decir,
+$T_d=\theta$), porque la planta real tiene el rezago del motor que la regla
+de la mitad solo reparte y que el derivativo compensa con adelanto de fase;
+en yaw $k_d=0$. El factor no viene de SIMC sino de los barridos automáticos
+(\cref{sec:barridos}): la primera versión usaba $k_d=K_c\theta/3$, y frente a
+un doblete de \emph{tasa} ese derivativo dejaba un 20~\% de sobreimpulso;
+con $K_c\theta$ y el filtro de 60~Hz baja a cerca del 6~\%, a costa de un 7~\%
+más de actividad de alta frecuencia en los motores. El lazo de
+ángulo es proporcional, diseñado sobre $1/s$ con el lazo de tasa cerrado
+visto como un retardo $\tau_{cl}=\tau_c+\theta$ y una constante de lazo
+cerrado $3\tau_{cl}$:
+\begin{equation}
+K_{ang}=\frac{1}{3\tau_{cl}+\tau_{cl}}=\frac{1}{4\tau_{cl}}.
+\label{eq:kang}
+\end{equation}
+
+\paragraph{Con los números del PAE-X450.} $\theta=16$~ms y
+$\tau_c+\theta=32$~ms, de modo que
+\begin{align*}
+\text{roll:}&\quad K_c=\frac{1}{\val{KR}\cdot0.032}=\val{kpRateRoll},\quad T_i=0.128~\text{s},\quad k_i=\val{kiRateRoll},\quad k_d=\val{kdRoll};\\
+\text{pitch:}&\quad K_c=\val{kpRatePitch},\quad k_i=\val{kiRatePitch},\quad k_d=\val{kdPitch};\\
+\text{yaw:}&\quad K_c=\val{kpRateYaw},\quad k_i=\val{kiRateYaw},\quad k_d=0;\\
+\text{ángulo:}&\quad K_{ang}=\frac{1}{4\cdot0.032}=\val{kpAng}~\text{s}^{-1}\ \text{(los tres ejes)}.
+\end{align*}
+Como comprobación, la frecuencia de cruce del lazo de tasa de roll es
+$K_cK=\val{wc}$~rad/s $=1/(\tau_c+\theta)$, como prescribe SIMC. En unidades
+físicas, $K_c\tau_{max}=\val{KpNm}$~N·m por rad/s. El $K_c$ de yaw es 16 veces
+mayor que el de roll porque su planta es 16 veces más lenta
+($K_z\ll K_x$): las ganancias normalizadas absorben la diferencia de
+autoridad.
+
+\paragraph{Respuesta medida.} En el simulador completo (estimador ideal,
+sensores sin ruido), un escalón de roll de $10^\circ$ tiene un tiempo de
+subida del 10 al 90~\% de \val{stepRise}~ms, sobreimpulso
+\val{stepOS}~\% y error final \val{stepErr}$^\circ$. La subida es más rápida
+que la que sugiere el objetivo de diseño (una constante de lazo cerrado de
+$3\tau_{cl}=96$~ms daría $2.2\times96\approx210$~ms de subida), señal de que la regla de la
+mitad sobrestima el retardo efectivo: el diseño queda del lado conservador.
+Con un estimador real en el lazo, la identificación de la
+\cref{sec:posicion} da un primer orden con retardo de
+$\val{tauAttF}~\text{ms}+\val{thAttF}~\text{ms}$ para el lazo de actitud
+cerrado.
+
+\subsection{Lazo vertical}
+
+En modo actitud, la altura se controla con una cascada posición--velocidad
+que corre en el lazo externo (100~Hz) y entrega una aceleración vertical
+deseada hacia arriba (\cod{VerticalController}):
+\begin{equation}
+\begin{gathered}
+\dot h_{ref}=\sat_{\pm2.5}\big(K_h(h_{ref}-\hat h)\big),\qquad
+a_{up}=\text{PI}\big(\dot h_{ref}-\hat{\dot h}\big)\in[-6,6]~\text{m/s}^2,\\
+T=\sat_{[0,\,0.95T_{max}]}\frac{m\,(g+a_{up})}{\max(\cos\hat\phi\cos\hat\theta,\ 0.5)} .
+\end{gathered}
+\label{eq:vertical}
+\end{equation}
+La división por $\cos\phi\cos\theta$ compensa la pérdida de empuje vertical
+al inclinarse (con un tope en $60^\circ$ de inclinación equivalente). Con la
+compensación de masa, la planta entre $a_{up}$ y $\dot h$ es un integrador
+con ganancia 1; las ganancias salen de las mismas reglas con un retardo
+supuesto de 50~ms y $\tau_c=2.5\theta$: $K_h=\val{vKpPos}$~s$^{-1}$,
+$k_p=\val{vKpVel}$~s$^{-1}$ y $k_i=\val{vKiVel}$~s$^{-2}$.
+
+\subsection{De la aceleración deseada a empuje y actitud: planitud diferencial}
+\label{sec:planitud}
+
+Los cinco controladores de posición (\cref{sec:posicion}) entregan una
+aceleración deseada $\vect a_{des}$ en NED, y una sola función
+(\cod{acceleration\_to\_attitude}) la convierte en empuje y actitud de
+referencia. Mellinger y Kumar \cite{mellinger11} mostraron que el
+cuadricóptero es diferencialmente plano con salidas planas $(\vect p,\psi)$:
+la actitud y el empuje quedan determinados por la aceleración y el rumbo.
+De \eqref{eq:newton} sin arrastre, la fuerza que debe producir el empuje es
+\begin{equation}
+\vect F=m\,(\vect a_{des}-g\eu),\qquad F_z\le-0.1\,mg,
+\qquad \|\vect F_{xy}\|\le|F_z|\tan\theta_{max},
+\label{eq:flatF}
+\end{equation}
+donde la primera cota impide pedir empuje hacia abajo y la segunda limita
+la inclinación a $\theta_{max}=\val{tiltMax}^\circ$
+(\cod{SimConfig.tilt\_max\_deg}). El simulador pasa ese mismo límite a
+\cod{acceleration\_to\_attitude} para todos los controladores, de modo que
+ninguno puede inclinar más que otro. Como el empuje actúa a lo largo de $-z_B$:
+\begin{equation}
+\vect z_B=-\frac{\vect F}{\|\vect F\|},\quad
+\vect x_c=(\cos\psi_{ref},\sin\psi_{ref},0),\quad
+\vect y_B=\frac{\vect z_B\times\vect x_c}{\|\vect z_B\times\vect x_c\|},\quad
+\vect x_B=\vect y_B\times\vect z_B,
+\label{eq:flatR}
+\end{equation}
+y de $\R=[\vect x_B\ \vect y_B\ \vect z_B]$ se leen
+$\theta=-\arcsin x_{B,z}$, $\phi=\operatorname{atan2}(y_{B,z},z_{B,z})$,
+$\psi=\operatorname{atan2}(x_{B,y},x_{B,x})$ y $T=\|\vect F\|$. Con el
+PAE-X450, pedir 1~m/s$^2$ hacia el norte da $\theta=\val{flatPitch}^\circ$
+(morro abajo) y $T=\val{flatT}$~N; 2~m/s$^2$ hacia el este da
+$\phi=\val{flatRoll}^\circ$. Ambos coinciden con
+$\arctan(a/g)$ y $m\sqrt{g^2+a^2}$.
+
+Usar una conversión común es lo que hace justa la comparación: los cinco
+controladores ven la misma planta, los mismos sensores, el mismo estimador y
+el mismo bajo nivel, y solo difieren en cómo calculan $\vect a_{des}$.

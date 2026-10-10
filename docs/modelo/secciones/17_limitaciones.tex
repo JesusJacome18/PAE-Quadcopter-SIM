@@ -1,0 +1,196 @@
+\section{Limitaciones y trabajo futuro}
+\label{sec:limitaciones}
+
+Un modelo se defiende mejor declarando sus límites que escondiéndolos. Esta
+sección separa lo que se omitió a sabiendas, con su justificación, de lo que
+se detectó durante la verificación o en la revisión externa y sigue
+abierto, y termina con los datos del dron real que hacen falta para cerrar
+varios de esos puntos.
+
+\subsection{Omisiones del modelo físico}
+
+\begin{itemize}
+\item \textbf{Dinámica eléctrica del motor y reacción por aceleración del
+rotor.} El propulsor de primer orden no satura la corriente, por lo que su
+aceleración inicial ante un escalón es irreal y el término $-\dot{\vect h}_r$
+se omite (\cref{sec:reaccion}). Un modelo con resistencia de devanado,
+constante $K_t$ y límite de corriente permitiría incluirlo y daría además
+una medida directa de calentamiento, en lugar del sustituto
+\cod{motor\_hf\_pct}.
+\item \textbf{Constante de tiempo del motor.} $T_m=20$~ms viene de
+CopterSim, no de los motores del proyecto, y es la misma en todo punto de
+operación, con carga o sin ella, al acelerar y al frenar, sin límite de
+pendiente. El lazo de tasa es más sensible a $T_m$ que a los retardos
+omitidos: con 30~ms el margen de fase baja de 58.7 a 48.1$^\circ$
+(\cref{sec:integracion}).
+\item \textbf{Batería.} Voltaje constante: $C_R$ no cae durante el vuelo y
+el acelerador de hover no deriva. CopterSim trae un modelo de batería que
+podría portarse.
+\item \textbf{Aerodinámica del rotor.} No hay \emph{blade flapping}, arrastre
+inducido ni pérdida de empuje en vuelo de avance, que a velocidades de
+varios m/s producen fuerzas horizontales y momentos de cabeceo
+proporcionales a la velocidad. Tampoco hay anillo de vórtices en descensos
+rápidos. El arrastre vertical es un supuesto y el momento del arrastre por
+la separación de 0.12~m entre centro aerodinámico y de masa que declara
+CopterSim no se modela.
+\item \textbf{Efecto suelo.} Escala el empuje de cada rotor pero no su par
+de arrastre. Es un supuesto de modelado, no una consecuencia del modelo de
+efecto suelo elegido.
+\item \textbf{Forma del empuje.} $T=C_T\Omega^2$ puro, frente al ajuste
+$b\Omega^2+a\Omega+c$ que Quitian Niño \cite{quitian22} encontró
+significativo en banco.
+\item \textbf{Inercia y carga.} Tensor diagonal; la carga útil no agrega
+productos de inercia y su desplazamiento vertical del centro de masa no
+produce brazo para el empuje.
+\item \textbf{Turbulencia.} Filtros de primer orden en los tres ejes,
+alineados con NED (\cref{sec:perturbaciones}).
+\item \textbf{Suelo.} Restricción simple sin fricción ni rebote.
+\end{itemize}
+
+\subsection{Omisiones de la cadena digital}
+
+\begin{itemize}
+\item \textbf{ESC.} Por defecto responde de forma instantánea y continua a
+$\sigma$: no hay frecuencia de PWM, protocolo (PWM, OneShot, DShot) ni
+filtrado de entrada. Con PWM de 50~Hz el margen de fase del lazo de tasa
+caería a 39.6$^\circ$ y la ganancia admisible a 2.4 veces
+(\cref{tab:margenes}). Las opciones \cod{esc\_rate\_hz} y
+\cod{esc\_pulse\_delay\_s} permiten estudiarlo, pero el valor real del dron
+del proyecto no se conoce todavía.
+\item \textbf{Retardo de cómputo.} Por defecto el mando se aplica en el
+mismo periodo en que se calcula; \cod{compute\_delay\_samples} agrega uno o
+más periodos. Su efecto sobre los márgenes está en la
+\cref{sec:integracion}.
+\item \textbf{Resolución del acelerador.} $\sigma$ es continuo por defecto.
+Con el LEDC del ESP32 a 50~Hz y 10 bits quedan unos 51 escalones útiles,
+que pueden generar ciclos límite; \cod{throttle\_levels} permite
+cuantizarlo.
+\item \textbf{Temporización ideal.} El lazo es perfectamente periódico: no
+hay \emph{jitter} de FreeRTOS (interrupciones de la radio NRF24 o del WiFi,
+lecturas I2C), ni desfase entre la tasa de salida de la IMU y el lazo de
+500~Hz, ni el filtro digital interno de la IMU. El retardo de 2~ms de la IMU
+es un supuesto sin fuente citada.
+\item \textbf{Barómetro.} Un ruido de 0.17~m corresponde a un modo de alta
+resolución del BMP180, cuya conversión limita la tasa a unos 13--33~Hz; la
+simulación usa 40~Hz. Falta contrastarlo con la hoja de datos y con la
+configuración del firmware.
+\item \textbf{Enlace de posición.} Además del retardo de 10~ms del sensor,
+\cod{pos\_link\_delay\_s} suma la latencia del enlace (captura de movimiento
+o radio, típicamente 5--30~ms). Vale 0 por defecto porque depende del
+sistema de posicionamiento que se use con el dron real.
+\end{itemize}
+
+Los valores por defecto de las opciones nuevas (\cod{compute\_delay\_samples},
+\cod{esc\_rate\_hz}, \cod{esc\_pulse\_delay\_s}, \cod{throttle\_levels},
+\cod{pos\_link\_delay\_s}) conservan el
+comportamiento con el que se identificaron los rezagos y se afinaron los
+controladores, para que las cifras de este documento sigan siendo
+reproducibles. Una sintonía hecha con ellas desactivadas es optimista en
+margen de fase. Antes de llevarla al dron conviene repetir el escalón de
+tasa con los valores reales del ESC y del firmware.
+
+\subsection{Hallazgos de la verificación}
+
+Varios hallazgos de la verificación ya se corrigieron en el núcleo y este
+documento describe el estado corregido: el pasa-bajos del acelerómetro antes
+del AHRS, que elimina el sesgo de inclinación por rectificación de la
+vibración (de \val{rectmadC} a \val{rectmadF}$^\circ$ con Madgwick); el
+arranque en el aire coherente (líneas de retardo llenas, AHRS alineado,
+covarianza de navegación en régimen); el filtro que se rediseña en vuelo
+sin transitorio; los valores por defecto de $k_d$, del filtro del
+giroscopio, del EKF y de $\beta$. La revisión externa de octubre de 2026
+llevó a corregir además: la compensación de aceleración, que ya no se aplica
+sin correcciones horizontales de posición absoluta, entra en rampa, se
+recorta y pasa por el mismo filtro que el acelerómetro
+(\cref{sec:leishman}); la corrección magnética de Madgwick y Mahony, que
+ahora solo actúa sobre el rumbo; la base de tiempo con razones no enteras
+entre física y control (\cref{sec:integracion}); la línea de retardo de los
+sensores, que ahora admite retardo nulo y fraccional y arranca cebada; la
+validación de nombres de estimadores y de ganancias, que antes ignoraba sin
+aviso una clave mal escrita; el tope del integrador de Mahony; el registro,
+que ya no descarta columnas que aparecen a mitad de corrida; y una
+regularización adaptativa en el iLQR del NMPC. Quedan abiertos:
+
+\begin{itemize}
+\item \textbf{Compensación de aceleración.} Con sensor de posición sigue
+siendo autorreferente entre correcciones y queda un desfase de unos 17~ms
+entre las dos señales que se restan (\cref{sec:leishman}). Sin sensor de
+posición queda desactivada, así que en ese modo el AHRS vuelve a
+equivocarse durante las aceleraciones sostenidas. La solución de fondo es
+un filtro de navegación con el error de actitud como estado.
+\item \textbf{Error de actitud en ángulos de Euler.} El lazo de ángulo resta
+ángulos de Euler. Es válido con el límite de 30$^\circ$, pero se degrada en
+maniobras agresivas y es singular cerca de $\pm90^\circ$ de cabeceo; PX4
+usa el error de cuaternión.
+\item \textbf{Madgwick sin estimación de sesgo.} El término de compensación
+de deriva del artículo original no está implementado; la comparación con
+Mahony y el EKF, que sí estiman el sesgo, debe leerse con eso en mente.
+\item \textbf{Retardo de la cadena en la sintonía.} Las ganancias por
+defecto se calculan con la cadena nominal ($\theta=16.0$~ms); la cadena
+configurada, con filtros, cómputo y ESC, solo se usa con
+\cod{gains\_from\_chain} (\cref{sec:control}). Ninguna de las dos incluye
+el filtro del derivativo ni la fase exacta del motor.
+\item \textbf{Barridos de estimadores anteriores.} Las tablas de
+\cod{docs/BARRIDOS.md} se obtuvieron con la cadena de sombra anterior, que
+no era la que se vuela (\cref{sec:barridos}); habría que repetirlos.
+\item \textbf{Rezagos y políticas sin regenerar.} \cod{DEFAULT\_LAGS}, los
+pesos del MPC y del NMPC y las políticas de RL se obtuvieron con el núcleo
+anterior (Madgwick, sin filtro de acelerómetro); no se volvieron a
+identificar, afinar ni entrenar (\cref{sec:posicion}). Re-identificar el
+sustituto hoy da otros rezagos, así que la receta de \cod{docs/RL.md} no
+reproduce exactamente los archivos de \cod{models/}.
+\item \textbf{Ciclo límite del PID con EMI en escalones.} Incluso con
+$K_{i,xy}=2$ (\cref{sec:posicion}).
+\item \textbf{Exponente de la EMI.} $\sigma^{1.5}$ no se deriva del modelo de
+propulsor (\cref{sec:perturbaciones}).
+\item \textbf{Fusión del barómetro con el sensor de posición activo.} Inocua
+en la práctica, pero no intencional (\cref{sec:estimadores}).
+\end{itemize}
+
+\subsection{Alcance del banco de controladores}
+
+\begin{itemize}
+\item \textbf{Tres semillas.} Bastan para ver tendencias consistentes, no
+para probar diferencias de milímetros (\cref{sec:lectura_banco}).
+\item \textbf{Afinación sobre el conjunto de prueba.} PID, MPC y NMPC se
+afinaron con la semilla 1 de la figura en 8 y el círculo, que forma parte
+del banco, y el integral del PID se eligió mirando el caso con EMI. El RL no
+tuvo esa ventaja.
+\item \textbf{Aprendizaje por refuerzo.} Un solo entrenamiento PPO por
+política, cortado cuando la curva todavía bajaba; previsión, observación,
+salida y límite de inclinación distintos de los del MPC; validación con
+trayectorias que pertenecen a la familia de entrenamiento; y un residuo
+elegido por costo y no por error. Las conclusiones valen para estas
+políticas, no para el RL en general.
+\end{itemize}
+
+\subsection{Datos pendientes del dron real}
+
+Cuatro mediciones cerrarían buena parte de lo anterior:
+\begin{enumerate}
+\item protocolo y frecuencia de actualización del ESC del dron (PWM,
+OneShot o DShot, y su tasa);
+\item constante de tiempo del motor medida en banco, con escalones de
+acelerador y tacómetro óptico, en subida y en bajada;
+\item modo y tasa reales del BMP180 en el firmware;
+\item sistema de posicionamiento disponible (captura de movimiento, RTK o
+ninguno) y su latencia, que decide si la compensación de aceleración puede
+usarse y cuánto retardo tiene la posición.
+\end{enumerate}
+
+\subsection{Trabajo futuro}
+
+El paso que más valor agrega es medir el dron real del proyecto y
+reemplazar los parámetros de la literatura: masa y brazo, $C_T$ y $C_M$ en
+banco, la recta del ESC y $T_m$ con escalones, inercias con péndulo
+compuesto y trifilar (el protocolo de Quitian Niño \cite{quitian22}, de esta
+misma universidad, ya describe esos bancos), y el espectro de vibración en
+hover. Con esos números y los datos pendientes de arriba, el flujo que este
+documento verifica (identificar los rezagos, derivar ganancias SIMC, afinar
+en simulación con barridos y validar con el banco) se repite sobre el
+vehículo real. Para los controladores de aprendizaje el orden es el
+contrario del que sugería la edición anterior: primero mejorar la política
+(observaciones normalizadas, la misma previsión que el MPC, salida como
+corrección sobre la aceleración de referencia, selección por error de
+validación y varias semillas de entrenamiento) y después, con una ablación
+de un factor a la vez, decidir qué le falta al sustituto.

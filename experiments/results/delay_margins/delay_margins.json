@@ -1,0 +1,76 @@
+[
+ {
+  "caso": "continuo, sin retardo de computo (por defecto)",
+  "config": {},
+  "f_cross_hz": 4.684047366663534,
+  "phase_margin_deg": 58.72369774305438,
+  "f_180_hz": 22.486811605132992,
+  "gain_margin_db": 14.639321639856535,
+  "max_gain_factor": 5.394684888676303,
+  "max_gain_factor_time": 4.91392214442748
+ },
+ {
+  "caso": "+1 muestra de computo (2 ms)",
+  "config": {
+   "compute_delay_samples": 1
+  },
+  "f_cross_hz": 4.684047366663534,
+  "phase_margin_deg": 55.35118363905662,
+  "f_180_hz": 18.849802833272776,
+  "gain_margin_db": 12.674001864839513,
+  "max_gain_factor": 4.302294083080008,
+  "max_gain_factor_time": 3.9142882483508004
+ },
+ {
+  "caso": "+2 muestras de computo (4 ms)",
+  "config": {
+   "compute_delay_samples": 2
+  },
+  "f_cross_hz": 4.684047366663533,
+  "phase_margin_deg": 51.978669535058884,
+  "f_180_hz": 16.2385434442635,
+  "gain_margin_db": 11.121791896912306,
+  "max_gain_factor": 3.598235590116967,
+  "max_gain_factor_time": 3.2209806638985086
+ },
+ {
+  "caso": "ESC 400 Hz + 1 muestra",
+  "config": {
+   "esc_rate_hz": 400.0,
+   "compute_delay_samples": 1
+  },
+  "f_cross_hz": 4.683014366551304,
+  "phase_margin_deg": 53.24477961266026,
+  "f_180_hz": 17.128024402723753,
+  "gain_margin_db": 11.69290122585002,
+  "max_gain_factor": 3.842775925975794,
+  "max_gain_factor_time": 3.668016172818685
+ },
+ {
+  "caso": "ESC 400 Hz + 1 muestra + pulso 1.5 ms",
+  "config": {
+   "esc_rate_hz": 400.0,
+   "compute_delay_samples": 1,
+   "esc_pulse_delay_s": 0.0015
+  },
+  "f_cross_hz": 4.683014366551304,
+  "phase_margin_deg": 50.71595185472256,
+  "f_180_hz": 15.436282063136762,
+  "gain_margin_db": 10.635081240605654,
+  "max_gain_factor": 3.4021547346310035,
+  "max_gain_factor_time": 3.2209806638985086
+ },
+ {
+  "caso": "ESC 50 Hz (PWM estandar) + pulso 1.5 ms",
+  "config": {
+   "esc_rate_hz": 50.0,
+   "esc_pulse_delay_s": 0.0015
+  },
+  "f_cross_hz": 4.620074507008822,
+  "phase_margin_deg": 39.606013452285076,
+  "f_180_hz": 10.630142102106586,
+  "gain_margin_db": 7.765110613360566,
+  "max_gain_factor": 2.444868644098874,
+  "max_gain_factor_time": 2.2530432372164837
+ }
+]

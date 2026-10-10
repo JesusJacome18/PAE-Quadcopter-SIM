@@ -1,0 +1,10 @@
+{
+  "tau_xy": 0.08999999999999997,
+  "tau_z": 0.024999999999999998,
+  "delay": 0.028,
+  "delay_z": 0.0,
+  "cd_over_m": 0.03928571428571429,
+  "fit_r2_xy": 0.9511112681066092,
+  "fit_r2_z": 0.9198841688599672,
+  "source": "ajuste en simulador 6-DOF (madgwick, 30 s, semilla 3)"
+}

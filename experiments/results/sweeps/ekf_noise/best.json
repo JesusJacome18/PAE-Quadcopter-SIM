@@ -1,0 +1,59 @@
+{
+ "best_params": {
+  "estimator.ekf.accel_noise": 1.0,
+  "estimator.ekf.mag_noise": 0.01
+ },
+ "best": {
+  "point_id": "7db6388deb12",
+  "params": {
+   "estimator.ekf.accel_noise": 1.0,
+   "estimator.ekf.mag_noise": 0.01
+  },
+  "phase": "diseno",
+  "is_baseline": false,
+  "n_seeds": 2,
+  "estimator.ekf.accel_noise": "1",
+  "estimator.ekf.mag_noise": "0.01",
+  "crash": 0.0,
+  "crash_t": NaN,
+  "est_err_rms_deg": 0.3122269418,
+  "est_roll_err_rms_deg": 0.37582678999999997,
+  "est_pitch_err_rms_deg": 0.23135169719999998,
+  "est_err_max_deg": 1.0024932947,
+  "est_yaw_err_rms_deg": 0.27291558380000003,
+  "est_yaw_err_max_deg": 0.6671337616999999,
+  "bias_err_dps": 0.0089581523635,
+  "est_err_accel_deg": 0.20819011475,
+  "crash_rate": 0.0,
+  "error": null,
+  "est_err_rms_deg_std": 0.039053885968482305,
+  "est_yaw_err_rms_deg_std": 0.010578530427113222,
+  "cost": 0.27465231658678174,
+  "rank": 1
+ },
+ "baseline": {
+  "point_id": "baseline",
+  "params": {},
+  "phase": "base",
+  "is_baseline": true,
+  "n_seeds": 2,
+  "estimator.ekf.accel_noise": "base",
+  "estimator.ekf.mag_noise": "base",
+  "crash": 0.0,
+  "crash_t": NaN,
+  "est_err_rms_deg": 0.947214109,
+  "est_roll_err_rms_deg": 1.2017792042,
+  "est_pitch_err_rms_deg": 0.59104129225,
+  "est_err_max_deg": 5.1133626345,
+  "est_yaw_err_rms_deg": 1.8644443045,
+  "est_yaw_err_max_deg": 4.2001513045,
+  "bias_err_dps": 0.1447340908,
+  "est_err_accel_deg": 0.76571234225,
+  "crash_rate": 0.0,
+  "error": null,
+  "est_err_rms_deg_std": 0.2696267297565371,
+  "est_yaw_err_rms_deg_std": 0.9699837743729005,
+  "cost": 1.0,
+  "rank": 32
+ }
+}

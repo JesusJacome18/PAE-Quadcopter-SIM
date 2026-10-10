@@ -1,0 +1,118 @@
+\section{Cinemática}
+\label{sec:cinematica}
+
+\subsection{Por qué cuaterniones}
+
+La dinámica se integra con el cuaternión y no con los ángulos de Euler. La
+razón es práctica: la cinemática de Euler tiene una singularidad en
+$\theta=\pm90^\circ$ (\emph{gimbal lock}), donde la matriz que convierte
+velocidad angular en derivadas de los ángulos deja de ser invertible. Un
+dron real no vuela de canto, pero un controlador mal sintonizado o una
+maniobra acrobática pueden llevarlo ahí, y un simulador que se rompe
+justo cuando el controlador falla no sirve para estudiar fallas. El
+cuaternión no tiene singularidades, cuesta cuatro números en vez de nueve
+(matriz de rotación) y su cinemática es bilineal, lo que facilita la
+integración. Los ángulos de Euler se calculan solo para mostrar y para el
+lazo de actitud.
+
+\subsection{Ecuaciones}
+
+La cinemática de traslación es la definición de velocidad:
+\begin{equation}
+\dot{\vect p} = \vect v .
+\label{eq:pdot}
+\end{equation}
+La de rotación, con $\vect\omega$ expresada en el cuerpo
+(\cod{math3d.q\_derivative}):
+\begin{equation}
+\dot{\vect q} = \tfrac12\,\vect q\otimes\begin{bmatrix}0\\ \vect\omega\end{bmatrix}
+=\frac12\begin{bmatrix}
+-q_x p - q_y q - q_z r\\
+\phantom{-}q_w p + q_y r - q_z q\\
+\phantom{-}q_w q - q_x r + q_z p\\
+\phantom{-}q_w r + q_x q - q_y p
+\end{bmatrix},
+\label{eq:qdot}
+\end{equation}
+donde $\otimes$ es el producto de Hamilton. La matriz de rotación asociada
+(\cod{math3d.q\_to\_rot}) es
+\begin{equation}
+\R(\vect q)=\begin{bmatrix}
+1-2(q_y^2+q_z^2) & 2(q_xq_y-q_wq_z) & 2(q_xq_z+q_wq_y)\\
+2(q_xq_y+q_wq_z) & 1-2(q_x^2+q_z^2) & 2(q_yq_z-q_wq_x)\\
+2(q_xq_z-q_wq_y) & 2(q_yq_z+q_wq_x) & 1-2(q_x^2+q_y^2)
+\end{bmatrix}.
+\label{eq:Rq}
+\end{equation}
+
+\paragraph{Conversión con Euler.} De Euler a cuaternión
+(\cod{euler\_to\_q}), con $c_\bullet=\cos(\bullet/2)$ y
+$s_\bullet=\sin(\bullet/2)$:
+\begin{equation}
+\vect q=\begin{bmatrix}
+c_\phi c_\theta c_\psi + s_\phi s_\theta s_\psi\\
+s_\phi c_\theta c_\psi - c_\phi s_\theta s_\psi\\
+c_\phi s_\theta c_\psi + s_\phi c_\theta s_\psi\\
+c_\phi c_\theta s_\psi - s_\phi s_\theta c_\psi
+\end{bmatrix}.
+\end{equation}
+Y de vuelta (\cod{q\_to\_euler}):
+\begin{equation}
+\begin{aligned}
+\phi&=\operatorname{atan2}\!\big(2(q_wq_x+q_yq_z),\,1-2(q_x^2+q_y^2)\big),\\
+\theta&=\arcsin\!\big(\sat_{[-1,1]}\,2(q_wq_y-q_zq_x)\big),\\
+\psi&=\operatorname{atan2}\!\big(2(q_wq_z+q_xq_y),\,1-2(q_y^2+q_z^2)\big).
+\end{aligned}
+\end{equation}
+La saturación del argumento del arcoseno evita que el redondeo produzca un
+\texttt{NaN} cerca de $\theta=\pm90^\circ$.
+
+\paragraph{Tasas de Euler y velocidad angular.} El lazo de ángulo produce
+derivadas deseadas de los ángulos de Euler; el lazo de tasa necesita
+velocidades angulares del cuerpo. La relación para Z-Y-X
+(\cod{control/attitude.euler\_rates\_to\_body}) es
+\begin{equation}
+\vect\omega = W(\phi,\theta)\begin{bmatrix}\dot\phi\\ \dot\theta\\ \dot\psi\end{bmatrix},
+\qquad
+W=\begin{bmatrix}
+1 & 0 & -\sin\theta\\
+0 & \cos\phi & \sin\phi\cos\theta\\
+0 & -\sin\phi & \cos\phi\cos\theta
+\end{bmatrix}.
+\label{eq:W}
+\end{equation}
+$W$ deja de ser invertible en $\cos\theta=0$: es la misma singularidad de
+Euler, que por eso queda confinada al lazo de ángulo.
+
+\paragraph{Normalización.} La integración numérica de \eqref{eq:qdot} no
+conserva exactamente $\|\vect q\|=1$. Después de cada paso de física se
+renormaliza (\cod{dynamics.renormalize\_quat}). Es una proyección de orden
+del error de truncamiento, que no cambia el orden del método.
+
+\subsection{Verificación}
+
+El bloque B de \cod{model\_verification.py} toma 500 actitudes aleatorias
+(roll y pitch hasta $\pm80^\circ$ y $\pm74^\circ$, yaw en $\pm172^\circ$) y
+mide el peor caso de cada propiedad:
+
+\begin{table}[H]
+\centering
+\small
+\caption{Verificación numérica de la cinemática (peor caso en 500 actitudes).}
+\label{tab:verif_cin}
+\begin{tabularx}{\textwidth}{Xr}
+\toprule
+Propiedad comprobada & Error máximo \\
+\midrule
+Ortonormalidad, $\max|\R\T\R-I|$ y $|\det\R-1|$ & \val{eOrth} \\
+$\R(\vect q)$ de \eqref{eq:Rq} contra $\R_z\R_y\R_x$ de \eqref{eq:zyx} & \val{eZYX} \\
+Ida y vuelta Euler $\to\vect q\to$ Euler [rad] & \val{eRound} \\
+$W$ de \eqref{eq:W} contra derivadas de Euler obtenidas por diferencias finitas de \eqref{eq:qdot} [rad/s] & \val{eW} \\
+Jacobiano analítico $\partial(\R\T\vect d)/\partial\vect q$ usado por Madgwick y el EKF, contra diferencias finitas & \val{eJac} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Los dos primeros errores están en el nivel del redondeo de doble precisión;
+los dos últimos son del orden del error de las diferencias finitas usadas
+como referencia ($h=10^{-6}$ y $10^{-7}$), no del código.

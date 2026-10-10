@@ -1,0 +1,174 @@
+\section{Dinámica de Newton--Euler completa}
+\label{sec:dinamica}
+
+\subsection{Estado y entrada}
+
+El vector de estado tiene 17 componentes (\cod{dynamics.py}, índices
+\cod{IP, IV, IQ, IW, IR}):
+\begin{equation}
+\vect x = \big[\ \vect p\T\ \ \vect v\T\ \ \vect q\T\ \ \vect\omega\T\ \ \Omega_1\ \ \Omega_2\ \ \Omega_3\ \ \Omega_4\ \big]\T\in\mathbb R^{3+3+4+3+4=17} .
+\label{eq:estado}
+\end{equation}
+La entrada son los cuatro aceleradores $\sigma_i\in[0,1]$, retenidos
+(orden cero) durante cada paso de integración. Las perturbaciones entran por
+un objeto \cod{Environment}: velocidad del viento $\vect v_w$ en $\E$, fuerza
+externa $\vect F_{ext}$ en $\E$, momento externo $\vect\tau_{ext}$ en $\B$,
+eficiencia de cada motor $\eta_i$ y un indicador de efecto suelo.
+
+Incluir las velocidades de los rotores en el estado, en lugar de suponer que
+el empuje sigue instantáneamente al mando, es la diferencia entre un modelo
+útil para sintonizar y uno que no lo es. El rezago del motor ($T_m=20$~ms en
+el PAE-X450) es el mayor retardo de la cadena de control de actitud; sin él
+cualquier ganancia de tasa parece estable.
+
+\subsection{Supuestos}
+
+\begin{supuesto}[Supuestos del modelo de sólido rígido]
+\begin{itemize}[leftmargin=1.2em]
+\item Tierra plana y no rotante: $\E$ es inercial y la gravedad es uniforme.
+A las velocidades y distancias de un multirrotor de laboratorio, la
+aceleración de Coriolis terrestre ($\sim10^{-4}$~m/s$^2$) es despreciable.
+\item Cuerpo rígido con masa constante (salvo los eventos de carga útil,
+\cref{sec:perturbaciones}) y tensor de inercia diagonal (productos de inercia
+nulos por simetría).
+\item Rotores en el plano horizontal que contiene al centro de masa: el
+empuje no genera momento por un brazo vertical.
+\item Las fuerzas aerodinámicas del fuselaje actúan en el centro de masa.
+\end{itemize}
+\end{supuesto}
+
+\subsection{Traslación (Newton, en el marco inercial)}
+
+\begin{equation}
+m\,\dot{\vect v} = m g\,\eu + \R(\vect q)\,\vect f_B + \vect F_{ext},
+\qquad
+\vect f_B = \begin{bmatrix} f_{a,x}\\ f_{a,y}\\ f_{a,z} - \sum_{i=1}^4 T_i\end{bmatrix},
+\label{eq:newton}
+\end{equation}
+con $T_i = C_T\Omega_i^2$ (multiplicado por el factor de efecto suelo cuando
+está activo) y $\vect f_a$ la fuerza aerodinámica del fuselaje en $\B$
+(\cref{sec:aero}). La ecuación se escribe en $\E$ porque ahí la gravedad es
+constante y la posición se integra directamente; la fuerza de los rotores
+se escribe en $\B$ porque ahí es constante en dirección. La matriz $\R$ hace
+el puente, y con ella entra el acoplamiento que la 2.ª edición no tenía:
+inclinar el dron inclina el empuje, y el dron se desplaza.
+
+\subsection{Rotación (Euler, en el marco cuerpo)}
+
+El momento angular total del vehículo es el del cuerpo más el de los cuatro
+rotores. Si cada rotor gira con velocidad $\Omega_i$ alrededor de $z_B$ en el
+sentido $e_i$, un rotor antihorario visto desde arriba tiene su vector de
+velocidad angular hacia arriba, es decir, hacia $-z_B$. El momento angular
+de los rotores es entonces
+\begin{equation}
+\vect h_r = \begin{bmatrix}0\\0\\h_z\end{bmatrix},\qquad
+h_z = -J_m\sum_{i=1}^4 e_i\,\Omega_i .
+\label{eq:hr}
+\end{equation}
+Derivando $J\vect\omega+\vect h_r$ en el marco móvil e igualando al momento
+externo se obtiene
+\begin{equation}
+J\dot{\vect\omega} = \vect\tau_B - \vect\omega\times(J\vect\omega)
+ - \vect\omega\times\vect h_r - \underset{\scriptscriptstyle \text{omitido}}{\dot{\vect h}_r}
+ + \vect\tau_a + \vect\tau_{ext},
+\label{eq:euler}
+\end{equation}
+donde el momento de los rotores es
+\begin{equation}
+\vect\tau_B=\begin{bmatrix}\tau_x\\ \tau_y\\ \tau_z\end{bmatrix}
+=\begin{bmatrix}
+-\sum_i y_i\,T_i\\
+\phantom{-}\sum_i x_i\,T_i\\
+\phantom{-}\sum_i e_i\,Q_i
+\end{bmatrix},\qquad Q_i=C_M\Omega_i^2 .
+\label{eq:tauB}
+\end{equation}
+El signo de la fila de roll sale del producto cruz: el rotor $i$ está en
+$(x_i,y_i,0)$ y empuja con $(0,0,-T_i)$, así que
+$(x_i,y_i,0)\times(0,0,-T_i)=(-y_iT_i,\ x_iT_i,\ 0)$. Un rotor a la derecha
+($y_i>0$) que empuja más produce roll negativo (levanta el ala derecha).
+
+En componentes, con $J$ diagonal, el código (\cod{QuadrotorDynamics.derivative})
+evalúa
+\begin{align}
+J_{xx}\dot p &= \tau_x - (J_{zz}-J_{yy})\,q r - q\,h_z + \tau_{a,x} + \tau_{ext,x},\nonumber\\
+J_{yy}\dot q &= \tau_y - (J_{xx}-J_{zz})\,r p + p\,h_z + \tau_{a,y} + \tau_{ext,y},\label{eq:euler_comp}\\
+J_{zz}\dot r &= \tau_z - (J_{yy}-J_{xx})\,p q + \tau_{a,z} + \tau_{ext,z}.\nonumber
+\end{align}
+
+\paragraph{El término giroscópico de los rotores, $-\vect\omega\times\vect h_r$.}
+Solo afecta a roll y pitch, y es proporcional a la \emph{diferencia} entre
+las velocidades de los rotores CCW y CW. En hover esa diferencia es cero y el
+término desaparece; aparece cuando hay mando de guiñada mientras el dron
+gira en roll o pitch. Con $J_m/J_{zz}=\val{JmJz}$ su efecto es pequeño en el
+PAE-X450, pero se incluye porque no cuesta nada y está en todos los modelos
+de referencia \cite{qq17,hb11}.
+
+\subsection{El término de reacción por aceleración de los rotores, omitido}
+\label{sec:reaccion}
+
+El término $-\dot{\vect h}_r = J_m\sum_i e_i\dot\Omega_i\,\vect e_3$ es la
+reacción que siente el cuerpo cuando los motores \emph{aceleran} sus rotores.
+Está en las ecuaciones de Phang et al.\ \cite{hb11} (ecs.~11.14--11.16), y el
+código lo calcula, pero no lo aplica, salvo que la dinámica se construya
+con la opción \cod{include\_rotor\_reaction=True}. La decisión no es
+de comodidad; es de consistencia con el resto del modelo.
+
+Con el propulsor de primer orden de la \cref{sec:propulsion}, un escalón del
+acelerador desde hover hasta el máximo produce, en el primer instante,
+\begin{equation}
+\dot\Omega = \frac{\Omega_{max}-\Omega_h}{T_m}
+= \frac{\val{wmax}-\val{wh}}{0.02} = \val{dOm}\ \text{rad/s}^2,
+\qquad
+J_m\dot\Omega = \val{reac}\ \text{N·m por motor}.
+\end{equation}
+Ese par tendría que darlo el motor. Un motor 2212 de 920~KV (el típico de un
+F450) tiene $K_t = 60/(2\pi\cdot920) = \val{Kt}$~N·m/A; con un límite de
+corriente de 15~A (supuesto razonable para un ESC de 20--30~A) entrega como
+mucho $\val{taumot}$~N·m, unas \val{reacRatio} veces menos. El par
+aerodinámico máximo de la hélice es $\val{Qmax}$~N·m, \val{reacRatioAero}
+veces menor que esa reacción. En un motor real la corriente se satura y la
+aceleración del rotor queda limitada por el par disponible; el modelo de
+primer orden no tiene esa saturación, de modo que su $\dot\Omega$ inicial es
+físicamente inalcanzable.
+
+Aplicar $\dot{\vect h}_r$ con ese $\dot\Omega$ generaría golpes de guiñada
+de casi 3~N·m (ocho veces el momento máximo de guiñada del vehículo,
+$\val{taumaxY}$~N·m) que el dron real no siente. Modelarlo bien exige un
+modelo eléctrico del motor con límite de corriente, que queda como trabajo
+futuro (\cref{sec:limitaciones}). El modelo de Quan \cite{qq17} (cap.~6) y
+su implementación CopterSim \cite{cs19}, de donde provienen los parámetros
+del PAE-X450, tampoco incluyen este término: la omisión es coherente con la
+fuente de los datos.
+
+\subsection{Dinámica de los rotores}
+
+Cada rotor sigue un primer orden hacia la velocidad de régimen que impone su
+ESC (\cref{sec:propulsion}):
+\begin{equation}
+T_m\,\dot\Omega_i = \eta_i\,\omega_{ss}(\sigma_i) - \Omega_i ,
+\label{eq:rotor}
+\end{equation}
+con $\eta_i\in(0,1]$ la eficiencia del motor (1 salvo en el escenario de falla,
+\cref{sec:perturbaciones}).
+
+\subsection{Fuerza específica y contacto con el suelo}
+
+El acelerómetro ideal mide la fuerza específica, que el código calcula a
+partir de la derivada del estado (\cod{specific\_force\_B}):
+\begin{equation}
+\vect f_{acc} = \R\T\big(\dot{\vect v} - g\,\eu\big)
+= \frac{1}{m}\Big(\vect f_B + \R\T\vect F_{ext}\Big).
+\label{eq:fesp}
+\end{equation}
+La segunda igualdad, que sale de \eqref{eq:newton}, tiene una consecuencia
+que reaparece en la \cref{sec:estimadores}: el acelerómetro de un
+multirrotor mide empuje y arrastre, nunca la gravedad. En hover inclinado y
+sin velocidad mide $(0,0,-g)$ \emph{independientemente} de la inclinación.
+
+El suelo se trata como una restricción unilateral simple
+(\cod{Simulation.\_ground\_contact}): si $z>0$ se fija $z=0$ y se anula la
+velocidad vertical descendente; si además el empuje total es menor que el
+peso, el dron queda apoyado en sus patas: velocidad horizontal y angular
+nulas y actitud nivelada conservando el rumbo. No hay fricción ni rebote:
+basta para despegar y aterrizar, no para estudiar aterrizajes.

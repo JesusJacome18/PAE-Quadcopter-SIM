@@ -1,0 +1,60 @@
+{
+  "formato": "pae-quadcopter-sim/escenario",
+  "version": 1,
+  "titulo": "Carga útil descentrada, con y sin integral",
+  "nivel": "Intermedio",
+  "duracion_min": 3,
+  "descripcion": "A los 3 s se cuelga una carga de 300 g corrida 10 cm a la derecha. El lazo de tasa arranca sin término integral (Ki = 0 en roll y pitch).",
+  "aprenderas": [
+    "Por qué un centro de masa corrido deja un error permanente",
+    "Qué aporta el término integral del lazo de tasa",
+    "Cómo cambia el acelerador de cada motor con la carga"
+  ],
+  "pasos": [
+    "La simulación arranca sola; en t = 3 s se cuelga la carga.",
+    "Mire la gráfica Roll: el ángulo se queda lejos de la referencia.",
+    "Pulse Sugeridas SIMC (devuelve Ki) y luego Ctrl+R: la carga se cuelga de nuevo y el error se corrige."
+  ],
+  "observa": "Al colgar la carga, la curva blanca de Roll se aparta de la referencia y no vuelve. La altura cae unos centímetros y se recupera, y el acelerador de los cuatro motores sube para cargar la masa extra.",
+  "resultado_esperado": "Antes de la carga, el roll verdadero está en −0.6°. Sin integral, con la carga se queda en +2.2°: un error permanente de casi 3°. Con el Ki de SIMC vuelve a −0.6°, el mismo valor de antes. En los dos casos la altura baja a 1.38 m y regresa a 1.50 m, porque el lazo vertical sí tiene integral; la masa pasa de 1.4 a 1.7 kg.",
+  "pagina": "actitud",
+  "iniciar": true,
+  "config": {
+    "vehiculo": "pae_x450",
+    "modo": "actitud",
+    "ganancias": {
+      "roll": {
+        "angle_kp": 7.812,
+        "rate_kp": 0.2114,
+        "rate_ki": 0.0,
+        "rate_kd": 0.00338
+      },
+      "pitch": {
+        "angle_kp": 7.812,
+        "rate_kp": 0.2096,
+        "rate_ki": 0.0,
+        "rate_kd": 0.00335
+      },
+      "yaw": {
+        "angle_kp": 7.812,
+        "rate_kp": 3.3459,
+        "rate_ki": 26.1401,
+        "rate_kd": 0.0
+      }
+    },
+    "perturbaciones": {
+      "cargas": [
+        {
+          "t": 3.0,
+          "masa_kg": 0.3,
+          "desplazamiento_m": [
+            0.0,
+            0.1,
+            0.05
+          ],
+          "soltar": false
+        }
+      ]
+    }
+  }
+}

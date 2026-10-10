@@ -1,0 +1,14 @@
+# QuadSIM-PRIMBIO — dependencias
+# Núcleo de simulación (quadsim/): solo numpy.
+numpy>=1.24
+# GUI (gui/, main.py)
+PySide6>=6.5
+pyqtgraph>=0.13.3
+# Vista 3D con OpenGL (opcional: sin ella la GUI usa una vista isométrica 2D)
+PyOpenGL>=3.1
+# Gráficas de los barridos fuera de la GUI (quadsim.sweeps.plot_result, opcional)
+matplotlib>=3.7
+# Entrenamiento RL (quadsim.rl.surrogate usa scipy.signal)
+scipy>=1.10
+# Pruebas
+pytest>=7

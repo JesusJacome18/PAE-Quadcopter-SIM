@@ -1,0 +1,19 @@
+{
+  "mode": "residual",
+  "tag": "residual",
+  "wall_s": 2639.940170288086,
+  "steps": 23986176,
+  "best": {
+    "cost": 0.0395381820526749,
+    "rmse_p": 0.05716670390207138,
+    "fails": 0,
+    "iter": 640,
+    "steps": 20971520
+  },
+  "base_only_eval": {
+    "cost": 0.07636383191441744,
+    "rmse_p": 0.05206662068529019,
+    "fails": 0
+  },
+  "final_mean_step_reward": -0.07351448006363694
+}

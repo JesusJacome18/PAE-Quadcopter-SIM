@@ -1,0 +1,62 @@
+{
+  "formato": "pae-quadcopter-sim/escenario",
+  "version": 1,
+  "titulo": "PID mal sintonizado: lazo de tasa débil",
+  "nivel": "Intermedio",
+  "duracion_min": 3,
+  "descripcion": "El Kp del lazo de tasa de roll y pitch quedó en el 30 % del valor SIMC. El lazo de ángulo pide giros que el lazo interno no alcanza a frenar.",
+  "aprenderas": [
+    "Por qué el lazo interno debe ser más rápido que el externo",
+    "Reconocer sobrepaso y oscilación en la gráfica de tasa",
+    "Usar Sugeridas SIMC como punto de partida"
+  ],
+  "pasos": [
+    "La simulación arranca sola; en t = 2 s se aplica un escalón de 10° en roll.",
+    "Anote el sobrepaso de la tabla y mire cómo sigue oscilando. Pulse Sugeridas SIMC: la oscilación se apaga.",
+    "Pulse Ctrl+R: el escalón se repite solo, ahora con las ganancias SIMC.",
+    "Compare las dos filas del historial de escalones."
+  ],
+  "observa": "La tasa medida (verde) se pasa con holgura de la tasa ordenada (magenta punteada) y el ángulo llega casi al doble de lo pedido. Después del escalón el dron no se calma: queda oscilando en roll y en pitch, un ciclo límite que solo se corta al corregir las ganancias.",
+  "resultado_esperado": "Con Kp de tasa = 0.0634 (30 % del valor SIMC): sobrepaso de 92.7 %, subida de 0.11 s y, de ahí en adelante, una oscilación sostenida de unos 20° pico a pico en roll y en pitch. Con las ganancias SIMC (Kp de tasa = 0.2114): sobrepaso de 0 %, subida de 0.15 s y ninguna oscilación. Las cifras pueden variar unas décimas según el instante exacto en que se aplica el escalón.",
+  "pagina": "actitud",
+  "iniciar": true,
+  "config": {
+    "vehiculo": "pae_x450",
+    "modo": "actitud",
+    "ganancias": {
+      "roll": {
+        "angle_kp": 7.812,
+        "rate_kp": 0.0634,
+        "rate_ki": 1.6515,
+        "rate_kd": 0.00338
+      },
+      "pitch": {
+        "angle_kp": 7.812,
+        "rate_kp": 0.0629,
+        "rate_ki": 1.6378,
+        "rate_kd": 0.00335
+      },
+      "yaw": {
+        "angle_kp": 7.812,
+        "rate_kp": 3.3459,
+        "rate_ki": 26.1401,
+        "rate_kd": 0.0
+      }
+    },
+    "referencias": {
+      "roll": 0,
+      "pitch": 0,
+      "yaw": 0,
+      "alt": 1.5
+    }
+  },
+  "acciones": [
+    {
+      "t": 2.0,
+      "accion": "escalon",
+      "eje": "roll",
+      "amplitud": 10,
+      "ventana": 3
+    }
+  ]
+}

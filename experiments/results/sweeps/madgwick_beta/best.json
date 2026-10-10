@@ -1,0 +1,60 @@
+{
+ "best_params": {
+  "estimator.madgwick.beta": 0.1507313445
+ },
+ "best": {
+  "point_id": "47c1e6b54bad",
+  "params": {
+   "estimator.madgwick.beta": 0.1507313445
+  },
+  "is_baseline": false,
+  "phase": "diseno",
+  "cost_mean": 0.9341319151821761,
+  "cost_max": 0.9526750867255629,
+  "crash_rate": 0.0,
+  "cost": 0.9341319151821761,
+  "estimator.madgwick.beta": "0.1507",
+  "J[scenario.emi=False]": 0.9155887436387894,
+  "J[scenario.emi=True]": 0.9526750867255629,
+  "crash": 0.0,
+  "crash_t": NaN,
+  "est_err_rms_deg": 0.8201716214,
+  "est_roll_err_rms_deg": 0.9352632355999999,
+  "est_pitch_err_rms_deg": 0.66274409235,
+  "est_err_max_deg": 2.39068403775,
+  "est_yaw_err_rms_deg": 4.602792302375,
+  "est_yaw_err_max_deg": 6.4644093874749995,
+  "bias_err_dps": 0.37935793135,
+  "est_err_accel_deg": 0.9162699854999999,
+  "est_err_rms_deg_std": 0.058849107386825986,
+  "est_yaw_err_rms_deg_std": 0.20142280270032506,
+  "rank": 1
+ },
+ "baseline": {
+  "point_id": "baseline_10c7ced2c84e",
+  "params": {
+   "scenario.emi": true
+  },
+  "phase": "base",
+  "is_baseline": true,
+  "n_seeds": 2,
+  "estimator.madgwick.beta": "base",
+  "scenario.emi": "True",
+  "crash": 0.0,
+  "crash_t": NaN,
+  "est_err_rms_deg": 1.2991057445,
+  "est_roll_err_rms_deg": 1.5977440325,
+  "est_pitch_err_rms_deg": 0.90695389745,
+  "est_err_max_deg": 4.168534718,
+  "est_yaw_err_rms_deg": 7.881494845500001,
+  "est_yaw_err_max_deg": 11.097144265,
+  "bias_err_dps": 0.37935793135,
+  "est_err_accel_deg": 1.0193948158500001,
+  "crash_rate": 0.0,
+  "error": null,
+  "est_err_rms_deg_std": 0.019774961677691796,
+  "est_yaw_err_rms_deg_std": 0.08405089313422992,
+  "cost": 1.0,
+  "rank": 9
+ }
+}

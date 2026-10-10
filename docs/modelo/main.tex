@@ -1,0 +1,127 @@
+% =============================================================================
+% Modelo Matematico del Simulador QuadSIM-PRIMBIO -- 3ra edicion
+% Compilar con docs/modelo/build.sh (xelatex x2). Los numeros que vienen de
+% la verificacion numerica estan en valores.tex, generado por gen_valores.py
+% a partir de resultados_verificacion.json (experiments/model_verification.py).
+% =============================================================================
+\documentclass[11pt,a4paper,oneside]{article}
+
+\usepackage[spanish,provide=*]{babel}
+\usepackage{unicode-math}
+\setmainfont{Latin Modern Roman}
+\setsansfont{Latin Modern Sans}
+\setmonofont{Latin Modern Mono}[Scale=0.95]
+\setmathfont{Latin Modern Math}
+
+\usepackage[a4paper,top=2.6cm,bottom=2.6cm,left=2.7cm,right=2.5cm,headheight=14pt]{geometry}
+\usepackage{amsmath,mathtools}
+\usepackage{graphicx}
+\usepackage{booktabs,tabularx,longtable,multirow,array}
+\usepackage[table]{xcolor}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage[most]{tcolorbox}
+\usepackage[hidelinks,unicode,bookmarksnumbered]{hyperref}
+\usepackage[nameinlink,noabbrev]{cleveref}
+
+\graphicspath{{figuras/}{../../experiments/results/benchmark_final/}}
+
+% ---------------------------------------------------------------- colores
+\definecolor{tinta}{HTML}{0B0B0B}
+\definecolor{tinta2}{HTML}{52514E}
+\definecolor{azul}{HTML}{2A78D6}
+\definecolor{fondo}{HTML}{F3F6FB}
+\definecolor{fondoN}{HTML}{FFF6EC}
+\definecolor{naranja}{HTML}{EB6834}
+\hypersetup{colorlinks=true,linkcolor=azul,citecolor=azul,urlcolor=azul}
+\hypersetup{pdftitle={Modelo matemático del simulador QuadSIM-PRIMBIO, 3.ª edición},pdfauthor={Jesús Daniel Jácome; Francisco Javier Burgos Flórez (director)},pdfsubject={Proyecto Académico Especial, Semillero PRIMBIO, Grupo IAM-NANO, UNAL Sede La Paz}}
+
+% ---------------------------------------------------------------- textos
+\setlocalecaption{spanish}{table}{Tabla}
+\setlocalecaption{spanish}{listtable}{Índice de tablas}
+\captionsetup{font=small,labelfont=bf,margin=0.5cm}
+\crefname{equation}{ecuación}{ecuaciones}
+\Crefname{equation}{Ecuación}{Ecuaciones}
+\crefname{figure}{figura}{figuras}
+\Crefname{figure}{Figura}{Figuras}
+\crefname{table}{tabla}{tablas}
+\Crefname{table}{Tabla}{Tablas}
+\crefname{section}{sección}{secciones}
+\Crefname{section}{Sección}{Secciones}
+\crefname{subsection}{sección}{secciones}
+\Crefname{subsection}{Sección}{Secciones}
+\creflabelformat{equation}{#2(#1)#3}
+\newcommand{\crefpairconjunction}{ y }
+\newcommand{\crefmiddleconjunction}{, }
+\newcommand{\creflastconjunction}{ y }
+\newcommand{\crefrangeconjunction}{ a }
+
+\titleformat{\section}{\Large\bfseries\color{tinta}}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\large\bfseries\color{tinta}}{\thesubsection}{0.7em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{tinta2}}{\thesubsubsection}{0.6em}{}
+\numberwithin{equation}{section}
+\numberwithin{figure}{section}
+\numberwithin{table}{section}
+\setlength{\parskip}{0.35em}
+\setlength{\emergencystretch}{3em}
+\setlength{\parindent}{0pt}
+\setlist{itemsep=0.15em,topsep=0.3em}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{tinta2}Modelo matemático del simulador QuadSIM-PRIMBIO --- 3.ª edición}
+\fancyhead[R]{\small\color{tinta2}Sección~\thesection}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ---------------------------------------------------------------- cajas
+\newtcolorbox{nota}[1][]{enhanced,breakable,colback=fondo,colframe=azul,boxrule=0.5pt,
+  left=6pt,right=6pt,top=4pt,bottom=4pt,arc=2pt,fonttitle=\bfseries\small,
+  title={#1},coltitle=white}
+\newtcolorbox{supuesto}[1][Supuesto]{enhanced,breakable,colback=fondoN,colframe=naranja,boxrule=0.5pt,
+  left=6pt,right=6pt,top=4pt,bottom=4pt,arc=2pt,fonttitle=\bfseries\small,
+  title={#1},coltitle=white}
+
+% ---------------------------------------------------------------- notacion
+\newcommand{\vect}[1]{\symbf{#1}}
+\newcommand{\R}{\mathbf{R}}
+\newcommand{\E}{\{E\}}
+\newcommand{\B}{\{B\}}
+\newcommand{\eu}{\vect{e}_3}
+\newcommand{\sk}[1]{[#1]_{\times}}
+\newcommand{\cod}[1]{\texttt{#1}}
+\newcommand{\dif}{\mathrm{d}}
+\newcommand{\T}{^{\mathsf{T}}}
+\newcommand{\sat}{\operatorname{sat}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\sgn}{\operatorname{sgn}}
+
+\input{valores}
+
+\begin{document}
+\input{secciones/00_portada}
+\tableofcontents
+\clearpage
+\input{secciones/01_proposito}
+\input{secciones/02_marcos}
+\input{secciones/03_cinematica}
+\input{secciones/04_dinamica}
+\input{secciones/05_propulsion}
+\input{secciones/06_aerodinamica}
+\input{secciones/07_parametros}
+\input{secciones/08_linealizacion}
+\input{secciones/09_sensores}
+\input{secciones/10_filtros}
+\input{secciones/11_estimadores}
+\input{secciones/12_control}
+\input{secciones/13_perturbaciones}
+\input{secciones/14_integracion}
+\input{secciones/15_posicion}
+\input{secciones/16_barridos}
+\input{secciones/17_limitaciones}
+\input{secciones/18_referencias}
+\end{document}

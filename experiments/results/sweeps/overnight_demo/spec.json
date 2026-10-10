@@ -1,0 +1,273 @@
+{
+ "name": "overnight_demo",
+ "scenario": "attitude_step",
+ "design": "lhs",
+ "n_samples": 40,
+ "seeds": [
+  1
+ ],
+ "scenario_kw": {},
+ "fixed": {},
+ "cost_weights": {
+  "rate_track_rms_dps": 0.3,
+  "rate_overshoot_pct": 0.2,
+  "settle_ms": 0.2,
+  "motor_hf_pct": 0.3
+ },
+ "cost_normalize": true,
+ "pareto": [
+  "rate_overshoot_pct",
+  "motor_hf_pct"
+ ],
+ "refine_rounds": 2,
+ "design_seed": 0,
+ "include_baseline": true,
+ "label": "Barrido nocturno conjunto (filtros + estimador + PID)",
+ "description": "Hipercubo latino sobre 8 dimensiones a la vez (pasa-bajos, notch, \u03b2, PID de tasa) con 5 r\u00e9plicas y 2 rondas de refinamiento. Captura interacciones que los barridos de 1\u20132 par\u00e1metros no ven (p. ej. Fc del filtro vs Kd).",
+ "conditions": [],
+ "robust_stat": "mean",
+ "params": [
+  {
+   "path": "filter.all.0.fc",
+   "values": null,
+   "range": [
+    30.0,
+    200.0,
+    5
+   ],
+   "log": false,
+   "kind": "float",
+   "label": "Fc PB [Hz]",
+   "value_labels": null
+  },
+  {
+   "path": "filter.all.0",
+   "values": [
+    {
+     "ftype": "butterworth"
+    },
+    {
+     "ftype": "lowpass",
+     "q": 0.5
+    },
+    {
+     "ftype": "lowpass",
+     "q": 0.9
+    },
+    {
+     "ftype": "lowpass",
+     "q": 1.2
+    },
+    {
+     "ftype": "chebyshev",
+     "gain_db": 1.0
+    }
+   ],
+   "range": null,
+   "log": false,
+   "kind": "choice",
+   "label": "Tipo PB",
+   "value_labels": [
+    "Butterworth",
+    "PB Q=0.5",
+    "PB Q=0.9",
+    "PB Q=1.2",
+    "Chebyshev 1 dB"
+   ]
+  },
+  {
+   "path": "filter.all.1.ftype",
+   "values": [
+    "none",
+    "notch"
+   ],
+   "range": null,
+   "log": false,
+   "kind": "choice",
+   "label": "Notch",
+   "value_labels": null
+  },
+  {
+   "path": "filter.all.1.fc",
+   "values": null,
+   "range": [
+    120.0,
+    240.0,
+    5
+   ],
+   "log": false,
+   "kind": "float",
+   "label": "Centro notch [Hz]",
+   "value_labels": null
+  },
+  {
+   "path": "filter.all.1.q",
+   "values": null,
+   "range": [
+    1.0,
+    8.0,
+    5
+   ],
+   "log": false,
+   "kind": "float",
+   "label": "Q notch",
+   "value_labels": null
+  },
+  {
+   "path": "estimator.madgwick.beta",
+   "values": null,
+   "range": [
+    0.01,
+    0.5,
+    5
+   ],
+   "log": true,
+   "kind": "float",
+   "label": "\u03b2",
+   "value_labels": null
+  },
+  {
+   "path": "pid.rp.rate_kp_scale",
+   "values": null,
+   "range": [
+    0.75,
+    2.5,
+    5
+   ],
+   "log": false,
+   "kind": "float",
+   "label": "\u00d7 Kp tasa",
+   "value_labels": null
+  },
+  {
+   "path": "pid.rp.rate_kd_scale",
+   "values": null,
+   "range": [
+    0.0,
+    8.0,
+    5
+   ],
+   "log": false,
+   "kind": "float",
+   "label": "\u00d7 Kd tasa",
+   "value_labels": null
+  }
+ ],
+ "base_cfg": {
+  "vehicle": "pae_x450",
+  "physics_hz": 1000.0,
+  "ctrl_hz": 500.0,
+  "outer_hz": 100.0,
+  "integrator": "rk4",
+  "estimator": "madgwick",
+  "estimator_gains": {},
+  "use_mag": true,
+  "sensors": {
+   "gyro_noise_density_dps": 0.005,
+   "gyro_bias_init_dps": 0.3,
+   "gyro_bias_walk_dps": 0.005,
+   "accel_noise_density": 0.000588399,
+   "accel_bias_init": 0.05,
+   "vibration_enabled": true,
+   "vib_gyro_dps": 3.0,
+   "vib_accel": 1.5,
+   "blades": 2,
+   "mag_field_uT": 34.0,
+   "mag_inclination_deg": 30.0,
+   "mag_declination_deg": -8.0,
+   "mag_noise_uT": 0.04,
+   "mag_rate_hz": 100.0,
+   "baro_noise_m": 0.17,
+   "baro_rate_hz": 40.0,
+   "baro_delay_s": 0.03,
+   "baro_drift_m_per_s": 0.002,
+   "pos_noise_m": 0.01,
+   "pos_rate_hz": 100.0,
+   "pos_delay_s": 0.01,
+   "imu_delay_s": 0.002
+  },
+  "disturbances": {
+   "wind": {
+    "mean_speed": 0.0,
+    "mean_from_deg": 0.0,
+    "turbulence_sigma": 0.0,
+    "gust_amplitude": 0.0,
+    "gust_start": 5.0,
+    "gust_duration": 2.0,
+    "gust_from_deg": 90.0
+   },
+   "emi": {
+    "enabled": false,
+    "gain_uT": 15.0,
+    "direction_B": [
+     0.6,
+     0.8,
+     0.0
+    ],
+    "spike_rate_hz": 0.0,
+    "spike_uT": 30.0
+   },
+   "payloads": [],
+   "motor_faults": [],
+   "ground_effect": false
+  },
+  "gyro_filters": {
+   "roll": [
+    {
+     "ftype": "butterworth",
+     "fc": 80.0,
+     "q": 0.7071,
+     "gain_db": 0.0
+    },
+    {
+     "ftype": "none",
+     "fc": 177.0,
+     "q": 4.0,
+     "gain_db": 0.0
+    }
+   ],
+   "pitch": [
+    {
+     "ftype": "butterworth",
+     "fc": 80.0,
+     "q": 0.7071,
+     "gain_db": 0.0
+    },
+    {
+     "ftype": "none",
+     "fc": 177.0,
+     "q": 4.0,
+     "gain_db": 0.0
+    }
+   ],
+   "yaw": [
+    {
+     "ftype": "butterworth",
+     "fc": 80.0,
+     "q": 0.7071,
+     "gain_db": 0.0
+    },
+    {
+     "ftype": "none",
+     "fc": 177.0,
+     "q": 4.0,
+     "gain_db": 0.0
+    }
+   ]
+  },
+  "alt_filter": {
+   "ftype": "none",
+   "fc": 5.0,
+   "q": 0.7071,
+   "gain_db": 0.0
+  },
+  "nav_uses_position_sensor": true,
+  "acc_compensation": true,
+  "mode": "attitude",
+  "start_airborne": false,
+  "start_alt": 1.0,
+  "seed": 1,
+  "log_hz": 100.0
+ },
+ "_fingerprint": "7a58b07c5af4"
+}

@@ -1,0 +1,178 @@
+{
+ "name": "mahony_gains",
+ "scenario": "estimator_accuracy",
+ "design": "grid",
+ "n_samples": 20,
+ "seeds": [
+  1,
+  2
+ ],
+ "scenario_kw": {
+  "emi": false
+ },
+ "fixed": {},
+ "cost_weights": {
+  "est_err_rms_deg": 0.7,
+  "est_yaw_err_rms_deg": 0.3
+ },
+ "cost_normalize": true,
+ "pareto": [
+  "est_err_rms_deg",
+  "est_yaw_err_rms_deg"
+ ],
+ "refine_rounds": 0,
+ "design_seed": 0,
+ "include_baseline": true,
+ "label": "Ganancias de Mahony",
+ "description": "Kp \u00d7 Ki del filtro complementario de Mahony (estimador en sombra).",
+ "conditions": [],
+ "robust_stat": "mean",
+ "params": [
+  {
+   "path": "estimator.mahony.kp",
+   "values": null,
+   "range": [
+    0.1,
+    10.0,
+    7
+   ],
+   "log": true,
+   "kind": "float",
+   "label": "Kp",
+   "value_labels": null
+  },
+  {
+   "path": "estimator.mahony.ki",
+   "values": [
+    0.0,
+    0.01,
+    0.03,
+    0.1,
+    0.3,
+    1.0
+   ],
+   "range": null,
+   "log": false,
+   "kind": "float",
+   "label": "Ki",
+   "value_labels": null
+  }
+ ],
+ "base_cfg": {
+  "vehicle": "pae_x450",
+  "physics_hz": 1000.0,
+  "ctrl_hz": 500.0,
+  "outer_hz": 100.0,
+  "integrator": "rk4",
+  "estimator": "mahony",
+  "estimator_gains": {},
+  "use_mag": true,
+  "sensors": {
+   "gyro_noise_density_dps": 0.005,
+   "gyro_bias_init_dps": 0.3,
+   "gyro_bias_walk_dps": 0.005,
+   "accel_noise_density": 0.000588399,
+   "accel_bias_init": 0.05,
+   "vibration_enabled": true,
+   "vib_gyro_dps": 3.0,
+   "vib_accel": 1.5,
+   "blades": 2,
+   "mag_field_uT": 34.0,
+   "mag_inclination_deg": 30.0,
+   "mag_declination_deg": -8.0,
+   "mag_noise_uT": 0.04,
+   "mag_rate_hz": 100.0,
+   "baro_noise_m": 0.17,
+   "baro_rate_hz": 40.0,
+   "baro_delay_s": 0.03,
+   "baro_drift_m_per_s": 0.002,
+   "pos_noise_m": 0.01,
+   "pos_rate_hz": 100.0,
+   "pos_delay_s": 0.01,
+   "imu_delay_s": 0.002
+  },
+  "disturbances": {
+   "wind": {
+    "mean_speed": 0.0,
+    "mean_from_deg": 0.0,
+    "turbulence_sigma": 0.0,
+    "gust_amplitude": 0.0,
+    "gust_start": 5.0,
+    "gust_duration": 2.0,
+    "gust_from_deg": 90.0
+   },
+   "emi": {
+    "enabled": false,
+    "gain_uT": 15.0,
+    "direction_B": [
+     0.6,
+     0.8,
+     0.0
+    ],
+    "spike_rate_hz": 0.0,
+    "spike_uT": 30.0
+   },
+   "payloads": [],
+   "motor_faults": [],
+   "ground_effect": false
+  },
+  "gyro_filters": {
+   "roll": [
+    {
+     "ftype": "butterworth",
+     "fc": 80.0,
+     "q": 0.7071,
+     "gain_db": 0.0
+    },
+    {
+     "ftype": "none",
+     "fc": 177.0,
+     "q": 4.0,
+     "gain_db": 0.0
+    }
+   ],
+   "pitch": [
+    {
+     "ftype": "butterworth",
+     "fc": 80.0,
+     "q": 0.7071,
+     "gain_db": 0.0
+    },
+    {
+     "ftype": "none",
+     "fc": 177.0,
+     "q": 4.0,
+     "gain_db": 0.0
+    }
+   ],
+   "yaw": [
+    {
+     "ftype": "butterworth",
+     "fc": 80.0,
+     "q": 0.7071,
+     "gain_db": 0.0
+    },
+    {
+     "ftype": "none",
+     "fc": 177.0,
+     "q": 4.0,
+     "gain_db": 0.0
+    }
+   ]
+  },
+  "alt_filter": {
+   "ftype": "none",
+   "fc": 5.0,
+   "q": 0.7071,
+   "gain_db": 0.0
+  },
+  "nav_uses_position_sensor": true,
+  "acc_compensation": true,
+  "mode": "attitude",
+  "start_airborne": false,
+  "start_alt": 1.0,
+  "seed": 1,
+  "log_hz": 100.0
+ },
+ "_fingerprint": "7d6ea17bd953"
+}

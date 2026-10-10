@@ -1,0 +1,9 @@
+{
+ "fecha": "2026-10-10 10:15",
+ "resumen": "219 passed, 4 skipped in 229.75s (0:03:49)",
+ "aprobadas": 219,
+ "fallidas": 0,
+ "omitidas": 4,
+ "duracion_s": 229.8,
+ "python": "3.13.16"
+}

@@ -1,0 +1,116 @@
+\section{Barridos de parámetros y análisis de sensibilidad}
+\label{sec:barridos}
+
+Uno de los requisitos del proyecto es que los filtros también se sintonicen,
+como se sintoniza un PID, y que el software barra sus parámetros de forma
+automática. El
+módulo \cod{quadsim/sweeps.py} (con \cod{objectives.py} y
+\cod{experiments/sweep\_cli.py}) lo hace; el informe completo está en
+\cod{docs/BARRIDOS.md}. Esta sección resume el método y los hallazgos que
+tocan al modelo.
+
+\subsection{Método}
+
+{\sloppy Cada parámetro se nombra con una ruta de texto (\cod{filter.rp.0.fc},
+\cod{estimator.ekf.accel\_noise}, \cod{pid.rp.rate\_kd\_scale},
+\cod{sensors.vib\_gyro\_dps}, \ldots) que se aplica a la configuración o a la
+simulación viva solo con su API pública. Los diseños de experimento son
+grilla completa, aleatorio o hipercubo latino \cite{mckay79}, con
+refinamiento local alrededor del mejor punto (paso exploratorio de Hooke y
+Jeeves \cite{hooke61}). Hay tres ingredientes que vuelven útil la
+comparación:\par}
+
+\begin{itemize}
+\item \textbf{Números aleatorios comunes} \cite{lawkelton}: la semilla
+depende de la réplica y no del punto, así que todos los puntos ven el mismo
+ruido, el mismo sesgo y la misma turbulencia; las diferencias entre puntos
+vienen de los parámetros, y dos réplicas ya muestran tendencias limpias.
+\item \textbf{Costo normalizado}, $J=\sum_kw_k\,m_k/m_k^{base}$, donde la base
+es la configuración por defecto con las mismas semillas ($J<1$ es mejor que
+el defecto), junto con el frente de Pareto de dos métricas, que es la
+respuesta honesta cuando hay compromiso.
+\item \textbf{Condiciones}: parámetros que son condiciones de operación
+(vibración, EMI) y no ajustes. Cada punto se corre en todas y el ranking es
+robusto (promedio o peor caso), para que el ``mejor'' punto no sea siempre
+el de la condición más fácil.
+\end{itemize}
+
+Los escenarios de evaluación incluyen escalones de actitud y un
+\emph{doblete de tasa} de $\pm90^\circ$/s, porque el retardo de un filtro casi
+no se nota en el escalón de ángulo (el error de seguimiento varió entre
+2.02 y $2.07^\circ$ con cortes de 20 a 200~Hz) y sí en la respuesta de tasa.
+El ruido que llega a los motores se mide como el RMS del acelerador por
+encima de 20~Hz en vuelo estacionario (\cod{motor\_hf\_pct}): un motor con
+$T_m=20$~ms no sigue mandos más rápidos que unos 8~Hz, y esa energía se va
+en calor. Es un sustituto, porque el modelo de motor no tiene pérdidas
+eléctricas.
+
+\subsection{Hallazgos que tocan al modelo}
+
+\begin{itemize}
+\item \textbf{La vibración está donde dice el modelo.} En todas las corridas
+el tono dominante del giroscopio crudo está en 177.3--177.6~Hz, la
+frecuencia de paso de pala calculada.
+\item \textbf{Pasa-bajos: compromiso asimétrico.} Subir el corte de 80 a
+200~Hz mejora el sobreimpulso de tasa 3.5 puntos pero multiplica por 13 el
+ruido de motor; bajarlo a 20~Hz casi no quita más ruido y dispara el
+sobreimpulso al 51~\%. Con el mismo corte, un $Q=1.2$ atrasa menos que
+Butterworth.
+\item \textbf{Notch.} Centrado en 178~Hz con $Q=1$ reduce el ruido de motor
+63~\% con la mitad de retardo, y permite subir el pasa-bajos a 150~Hz. Un
+notch angosto ($Q=8$) descentrado 2~Hz pierde casi todo su beneficio: es la
+razón de los notch dinámicos ligados a las rpm.
+\item \textbf{El derivativo SIMC era bajo.} Con $k_d=K_c\theta/3$ el doblete
+de tasa tiene 20~\% de sobreimpulso; con el triple, 5.3~\%, con solo 7~\% más
+de ruido de motor. Kd y corte del filtro deben moverse juntos: bajar el
+corte a 40--60~Hz y subir $k_d$ de 3 a 4 veces da 3--6~\% de sobreimpulso
+con 40--70~\% menos ruido.
+\item \textbf{Estimadores.} El EKF con $\sigma_a=\sigma_m=0.05$ estaba mal
+sintonizado: sin EMI, $(\sigma_a,\sigma_m)\approx(1.1,\,0.007)$ baja el error
+de roll/pitch y de yaw 3 y 7 veces; el punto robusto frente a EMI es
+$(0.5,\,0.3)$; $\beta$ de Madgwick óptimo entre
+0.10 y 0.15; Mahony por defecto a 3~\% de su óptimo. Con EMI ninguna
+ganancia arregla el rumbo: en Madgwick y Mahony el magnetómetro corrige los
+tres ejes y contamina roll y pitch.
+\item \textbf{Los barridos encuentran los huecos del costo.} Una primera
+versión del costo sin el tiempo de establecimiento del ángulo llevó al
+optimizador a bajar la ganancia de tasa y ``ganar'' con un dron lento; y
+sintonizar el filtro solo en vuelo estacionario con turbulencia lleva a un
+filtro excesivo (20~Hz). El escenario y el costo deben excitar la dinámica
+que se quiere proteger.
+\end{itemize}
+
+\paragraph{Qué transfiere al dron real.} La forma de los compromisos, no los
+números: la amplitud y el espectro de la vibración son supuestos. Antes de
+transferir una sintonía de filtros hay que medir el espectro real del
+giroscopio en hover, ajustar $A_g$ en el simulador hasta que el pico
+coincida, y repetir el barrido.
+
+\paragraph{Qué se aplicó al núcleo.} A partir de estos barridos y de la
+verificación de este documento se cambiaron los valores por defecto: $k_d$ de
+tasa de $K_c\theta/3$ a $K_c\theta$, pasa-bajos del giroscopio de 80 a 60~Hz,
+ruidos del EKF a $(\sigma_a,\sigma_m)=(0.5,0.3)$, Butterworth de 30~Hz sobre el
+acelerómetro antes del AHRS y estimador por defecto Mahony. Para $\beta$ de
+Madgwick \emph{no} se tomó el óptimo del barrido (0.10--0.15) sino 0.015: el
+barrido corría el estimador en sombra con el acelerómetro crudo, y en lazo
+cerrado con el acelerómetro filtrado un $\beta$ grande produce un ciclo
+límite (\cref{sec:estimadores}). Con los nuevos valores, el escenario
+\cod{attitude\_step} pasó de 20.1 a 5.9~\% de sobreimpulso de tasa y de
+0.78 a 0.43$^\circ$ de error de estimación con Madgwick (0.51$^\circ$ con
+Mahony); en \cod{estimator\_accuracy} el error RMS bajó de 0.70 a 0.63$^\circ$
+con Mahony y de 1.14 a 0.68$^\circ$ con el EKF, cuyo error de rumbo pasó de
+2.55 a 0.43$^\circ$. Las tablas de \cod{docs/BARRIDOS.md} se produjeron con
+el núcleo anterior.
+
+\paragraph{Barridos de estimadores: sombra y vuelo.} Los barridos de
+\cod{madgwick\_beta}, \cod{mahony\_gains} y \cod{ekf\_noise} corren el
+estimador candidato en sombra. Hasta la revisión de octubre de 2026 esa
+cadena no era la que se vuela: recibía el acelerómetro sin el Butterworth
+previo al AHRS y una aceleración cinemática calculada por un filtro de
+navegación alimentado con el estimador ideal, sin el lazo autorreferente de
+la \cref{sec:leishman}. La revisión externa midió 1.26$^\circ$ RMS en sombra
+frente a 0.43$^\circ$ en el lazo para Madgwick. Hoy la sombra y el vuelo usan
+la misma función (\cod{quadsim/estimation.py}); los resultados de esos
+barridos en \cod{docs/BARRIDOS.md} se obtuvieron con la cadena anterior, y
+por eso el $\beta$ por defecto se decidió con mediciones en lazo cerrado y
+no con el óptimo del barrido.

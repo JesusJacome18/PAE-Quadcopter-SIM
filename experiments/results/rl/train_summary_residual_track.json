@@ -1,0 +1,17 @@
+{
+  "mode": "residual",
+  "tag": "residual_track",
+  "note": "corrida INTERRUMPIDA por un reinicio de la maquina en 11.08 M de 20 M pasos; CSV reconstruido del log de consola; se usa el mejor punto guardado",
+  "wall_s_until_interrupt": 1229.0,
+  "steps_until_interrupt": 11075584.0,
+  "best": {
+    "cost": 0.02691,
+    "rmse_p": 0.05338,
+    "steps": 7864320.0,
+    "iter": 240
+  },
+  "base_only_eval": {
+    "cost": 0.0305,
+    "rmse_p": 0.0521
+  }
+}

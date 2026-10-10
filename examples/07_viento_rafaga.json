@@ -1,0 +1,49 @@
+{
+  "formato": "pae-quadcopter-sim/escenario",
+  "version": 1,
+  "titulo": "Viento y ráfaga con control de posición",
+  "nivel": "Intermedio",
+  "duracion_min": 3,
+  "descripcion": "Vuelo estacionario con el PID de posición bajo viento de 4 m/s del este, turbulencia y una ráfaga de 6 m/s desde el norte a los 10 s.",
+  "aprenderas": [
+    "Cómo entra el viento a la dinámica",
+    "Qué hace el integrador del PID de posición frente a un viento constante",
+    "Medir la desviación que deja una ráfaga"
+  ],
+  "pasos": [
+    "La simulación arranca sola. Mire el dial de viento y la gráfica Deriva de posición.",
+    "En t = 10 s llega la ráfaga: observe el pico de error y cuánto tarda en volver.",
+    "Pulse Ráfaga ahora para repetirla, o suba el viento medio y vea cuánto aguanta."
+  ],
+  "observa": "El dial muestra el viento del este y, a los 10 s, la ráfaga desde el norte. La gráfica Deriva de posición casi no se mueve: el PID de posición inclina el dron contra el viento y su integrador absorbe la parte constante.",
+  "resultado_esperado": "Con viento estable (de 4 a 10 s) el error de posición tiene un RMSE de 0.016 m. La ráfaga lleva el viento a 7.1 m/s y el error a un máximo de 0.066 m (t ≈ 11.3 s); de 20 a 30 s el RMSE vuelve a 0.011 m.",
+  "pagina": "perturbaciones",
+  "iniciar": true,
+  "config": {
+    "vehiculo": "pae_x450",
+    "modo": "trayectoria",
+    "ganancias": "simc",
+    "trayectoria": {
+      "tipo": "hover",
+      "parametros": {
+        "alt": 1.5,
+        "duration": 30
+      }
+    },
+    "controlador": {
+      "tipo": "pid",
+      "parametros": {}
+    },
+    "perturbaciones": {
+      "viento": {
+        "medio": 4.0,
+        "viene_de": 90,
+        "turbulencia": 0.5,
+        "rafaga": 6.0,
+        "rafaga_inicio": 10.0,
+        "rafaga_duracion": 2.0,
+        "rafaga_viene_de": 0
+      }
+    }
+  }
+}

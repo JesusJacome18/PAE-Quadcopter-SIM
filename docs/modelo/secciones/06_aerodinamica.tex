@@ -1,0 +1,81 @@
+\section{Aerodinámica del fuselaje, viento y efecto suelo}
+\label{sec:aero}
+
+\subsection{Arrastre de traslación}
+
+El modelo de arrastre es el de CopterSim \cite{cs19} (ec.~1.19 de
+\cite{qq20}): cuadrático en la velocidad \emph{relativa al aire}, por eje del
+cuerpo, más un término lineal opcional que usan los vehículos tomados de
+Luukkonen \cite{luukkonen11}:
+\begin{gather}
+\vect v_{r,B} = \R\T\big(\vect v - \vect v_w\big),\label{eq:vrel}\\
+f_{a,j} = -C_{d,xy}\,v_{r,j}|v_{r,j}| - A\,v_{r,j}\quad (j=x,y),\qquad
+f_{a,z} = -C_{d,z}\,v_{r,z}|v_{r,z}| - A\,v_{r,z}.\label{eq:drag}
+\end{gather}
+Para el PAE-X450, $C_{d,xy}=0.055$~N/(m/s)$^2$ y $A=0$.
+
+El viento entra únicamente aquí, como velocidad del aire. Esa es la forma
+físicamente correcta: el viento no ``empuja'' al dron con una fuerza
+externa arbitraria, sino que cambia la velocidad relativa sobre la que actúa
+el arrastre. Dos consecuencias se ven en el simulador sin programarlas: un
+dron quieto en un viento de 3~m/s del norte siente
+$0.055\cdot3^2\approx0.50$~N hacia el sur y tiene que inclinarse unos
+$\arctan(0.50/13.7)\approx2^\circ$ contra el viento para mantener su
+posición; y un dron que vuela con el viento a favor a la velocidad del
+viento no siente arrastre alguno.
+
+\begin{supuesto}[Arrastre vertical]
+CopterSim solo modela arrastre en $x_B,y_B$. El simulador agrega
+$C_{d,z}=C_{d,xy}$ como supuesto (campo \cod{caveats} del vehículo). En
+ascensos y descensos lentos su efecto es pequeño; no debe usarse para
+estudiar descensos rápidos dentro de la propia estela (anillo de vórtices),
+que este modelo no representa.
+\end{supuesto}
+
+\subsection{Amortiguamiento rotacional}
+
+\begin{equation}
+\vect\tau_a = -\begin{bmatrix}
+C_{Cm,x}\,p|p|\\ C_{Cm,y}\,q|q|\\ C_{Cm,z}\,r|r|
+\end{bmatrix},
+\qquad C_{Cm}=(0.0035,\ 0.0039,\ 0.0034)\ \text{N·m/(rad/s)}^2 .
+\label{eq:damp}
+\end{equation}
+Los coeficientes son los de CopterSim. A 3~rad/s el amortiguamiento de roll
+vale unos 0.03~N·m, menos del 1~\% de $\tau_{x,max}$: no cambia la
+naturaleza integradora del lazo de tasa, pero acota la velocidad angular
+en lazo abierto. La 2.ª edición dejaba este término en cero por falta de
+fuente; ahora la tiene.
+
+\subsection{Efecto suelo}
+
+Cerca del suelo la estela del rotor se frena contra la superficie y el rotor
+produce más empuje con la misma potencia. Con el modelo clásico de
+Cheeseman y Bennett \cite{cheeseman55}, a una altura $h$ y para un rotor de
+radio $R_p$,
+\begin{equation}
+k_{ge}(h) = \frac{T_{IGE}}{T_{OGE}} = \frac{1}{1-\left(\dfrac{R_p}{4h}\right)^2},
+\qquad k_{ge}\le1.4,
+\label{eq:ge}
+\end{equation}
+y se aplica como factor sobre cada $T_i$ (\cod{dynamics.py}). El tope de
+1.4 (también para $h\le2$~cm) evita la singularidad en $h=R_p/4$, donde la
+fórmula deja de ser válida. Con $R_p=0.12$~m:
+
+\begin{table}[H]
+\centering
+\small
+\caption{Factor de efecto suelo para $R_p=0.12$~m.}
+\label{tab:ge}
+\begin{tabular}{lccccc}
+\toprule
+$h$ [m] & 0.06 & 0.12 & 0.24 & 0.5 & 1.0 \\
+$k_{ge}$ & \val{gea} & \val{geb} & \val{gec} & \val{ged} & \val{gee} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A partir de una altura de dos diámetros el efecto es menor del 0.4~\%. Está
+apagado por defecto y se activa en \cod{DisturbanceConfig(ground\_effect=True)};
+es útil para estudiar despegues y aterrizajes, no para el vuelo de
+seguimiento que se evalúa en este trabajo.

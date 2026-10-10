@@ -1,0 +1,47 @@
+{
+  "formato": "pae-quadcopter-sim/escenario",
+  "version": 1,
+  "titulo": "Falla de motor en vuelo estacionario",
+  "nivel": "Avanzado",
+  "duracion_min": 3,
+  "descripcion": "El motor M1 pierde el 40 % de su empuje a los 5 s mientras el PID de posición mantiene el dron quieto a 1.5 m.",
+  "aprenderas": [
+    "Cómo redistribuye el mezclador el empuje entre los cuatro motores",
+    "Qué es la saturación del mezclador (k_rp) y la pérdida de autoridad en yaw",
+    "Cuánto se desvía la posición durante la falla"
+  ],
+  "pasos": [
+    "La simulación arranca sola; en t = 5 s falla el motor M1.",
+    "Observe las barras de motores y el indicador k_rp de la barra superior.",
+    "Pulse Reparar para devolver el motor al 100 %, o pruebe una eficiencia de 0.5 con Programar."
+  ],
+  "observa": "En las barras de motores, M1 sube su acelerador para compensar el empuje perdido mientras los otros tres casi no cambian. El indicador k_rp de la barra superior sigue en 1.00: al mezclador todavía le alcanza.",
+  "resultado_esperado": "La falla en t = 5 s desvía la posición un máximo de 0.142 m; entre 15 y 20 s el error vuelve a un RMSE de 0.021 m. Al final, M1 trabaja al 93 % de acelerador y los demás al 61 %. Con eficiencia 0.5 el mezclador se satura (k_rp = 0.50) y el dron no se sostiene: se aleja unos 9 m.",
+  "pagina": "perturbaciones",
+  "iniciar": true,
+  "config": {
+    "vehiculo": "pae_x450",
+    "modo": "trayectoria",
+    "ganancias": "simc",
+    "trayectoria": {
+      "tipo": "hover",
+      "parametros": {
+        "alt": 1.5,
+        "duration": 30
+      }
+    },
+    "controlador": {
+      "tipo": "pid",
+      "parametros": {}
+    },
+    "perturbaciones": {
+      "fallas_motor": [
+        {
+          "t": 5.0,
+          "motor": 0,
+          "eficiencia": 0.6
+        }
+      ]
+    }
+  }
+}

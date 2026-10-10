@@ -1,0 +1,59 @@
+{
+ "best_params": {
+  "estimator.mahony.kp": 1.0,
+  "estimator.mahony.ki": 0.01
+ },
+ "best": {
+  "point_id": "0062a65299df",
+  "params": {
+   "estimator.mahony.kp": 1.0,
+   "estimator.mahony.ki": 0.01
+  },
+  "phase": "diseno",
+  "is_baseline": false,
+  "n_seeds": 2,
+  "estimator.mahony.kp": "1",
+  "estimator.mahony.ki": "0.01",
+  "crash": 0.0,
+  "crash_t": NaN,
+  "est_err_rms_deg": 0.5811551669999999,
+  "est_roll_err_rms_deg": 0.5540440297,
+  "est_pitch_err_rms_deg": 0.60178569785,
+  "est_err_max_deg": 1.4858077440000002,
+  "est_yaw_err_rms_deg": 0.25067867385,
+  "est_yaw_err_max_deg": 0.8348830089,
+  "bias_err_dps": 0.33342201045,
+  "est_err_accel_deg": 0.67632824625,
+  "crash_rate": 0.0,
+  "error": null,
+  "est_err_rms_deg_std": 0.19857451411282168,
+  "est_yaw_err_rms_deg_std": 0.11205749931720134,
+  "cost": 0.9705448494310642,
+  "rank": 1
+ },
+ "baseline": {
+  "point_id": "baseline",
+  "params": {},
+  "phase": "base",
+  "is_baseline": true,
+  "n_seeds": 2,
+  "estimator.mahony.kp": "base",
+  "estimator.mahony.ki": "base",
+  "crash": 0.0,
+  "crash_t": NaN,
+  "est_err_rms_deg": 0.5972768114,
+  "est_roll_err_rms_deg": 0.59601606875,
+  "est_pitch_err_rms_deg": 0.5984766585000001,
+  "est_err_max_deg": 1.468120574,
+  "est_yaw_err_rms_deg": 0.25982522385,
+  "est_yaw_err_max_deg": 0.81284722385,
+  "bias_err_dps": 0.1999519084,
+  "est_err_accel_deg": 0.70739512195,
+  "crash_rate": 0.0,
+  "error": null,
+  "est_err_rms_deg_std": 0.14534381176141836,
+  "est_yaw_err_rms_deg_std": 0.08913284404406312,
+  "cost": 1.0,
+  "rank": 4
+ }
+}

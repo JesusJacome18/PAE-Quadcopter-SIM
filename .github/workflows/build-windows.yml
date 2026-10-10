@@ -1,0 +1,59 @@
+name: Ejecutable Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Pruebas del nucleo
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONPATH: .
+        run: python -m pytest -q tests/test_audit_core.py tests/test_trajectories.py
+
+      - name: Compilar (PyInstaller, una carpeta)
+        run: pyinstaller --noconfirm packaging/QuadSIM-PRIMBIO.spec
+
+      - name: Prueba de humo del ejecutable
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $env:PAE_SIM_SETTINGS = "$env:RUNNER_TEMP\qs.ini"
+          $p = Start-Process -FilePath "dist\QuadSIM-PRIMBIO\QuadSIM-PRIMBIO.exe" -ArgumentList "--no-welcome","--example","05","--play" -PassThru
+          Start-Sleep -Seconds 20
+          if ($p.HasExited) { throw "El ejecutable se cerro antes de tiempo (codigo $($p.ExitCode))" }
+          Stop-Process -Id $p.Id -Force
+
+      - name: Empaquetar
+        shell: pwsh
+        run: Compress-Archive -Path dist\QuadSIM-PRIMBIO -DestinationPath QuadSIM-PRIMBIO-win64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: QuadSIM-PRIMBIO-win64
+          path: QuadSIM-PRIMBIO-win64.zip
+
+      - name: Publicar en Releases (solo etiquetas v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: QuadSIM-PRIMBIO-win64.zip

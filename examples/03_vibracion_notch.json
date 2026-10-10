@@ -1,0 +1,75 @@
+{
+  "formato": "pae-quadcopter-sim/escenario",
+  "version": 1,
+  "titulo": "Vibración de las hélices y filtro notch",
+  "nivel": "Intermedio",
+  "duracion_min": 3,
+  "descripcion": "Las hélices sacuden el giroscopio a la frecuencia de paso de pala. Con un pasa-bajos de 100 Hz el tono todavía llega al PID; un notch lo elimina.",
+  "aprenderas": [
+    "Ver una vibración en el espectro y en el diagrama de Bode",
+    "Qué hace un filtro notch y cuánto retardo cuesta",
+    "Comparar giroscopio crudo y filtrado"
+  ],
+  "pasos": [
+    "La simulación arranca sola. En el espectro, el pico gris y el verde coinciden con la línea ámbar.",
+    "Pulse Centrar el notch en la vibración.",
+    "Observe cómo cae el pico verde y lea Atenuación en ese tono y Retardo a 20 Hz."
+  ],
+  "observa": "En el espectro del giroscopio, el pico de la vibración (177 Hz, línea ámbar) aparece en la señal cruda (gris) y también en la filtrada (verde). En el Bode, la línea ámbar cae donde el pasa-bajos de 100 Hz todavía deja pasar parte del tono.",
+  "resultado_esperado": "Antes del notch, la cadena atenúa el tono 17.9 dB y el pico filtrado queda en −4.4 dB. Después de centrar el notch en 177.1 Hz (Q = 4), la atenuación sube a 43.9 dB y el pico filtrado baja a −31.3 dB. El retardo a 20 Hz pasa de 2.04 a 2.16 ms: el notch quita la vibración casi sin añadir retardo.",
+  "pagina": "sensores",
+  "iniciar": true,
+  "config": {
+    "vehiculo": "pae_x450",
+    "modo": "actitud",
+    "ganancias": "simc",
+    "sensores": {
+      "vibracion": true,
+      "vibracion_giro_dps": 8.0
+    },
+    "filtros": {
+      "roll": [
+        {
+          "tipo": "butterworth",
+          "fc": 100.0,
+          "q": 0.7071,
+          "ganancia_db": 0.0
+        },
+        {
+          "tipo": "none",
+          "fc": 177.0,
+          "q": 2.0,
+          "ganancia_db": 0.0
+        }
+      ],
+      "pitch": [
+        {
+          "tipo": "butterworth",
+          "fc": 100.0,
+          "q": 0.7071,
+          "ganancia_db": 0.0
+        },
+        {
+          "tipo": "none",
+          "fc": 177.0,
+          "q": 2.0,
+          "ganancia_db": 0.0
+        }
+      ],
+      "yaw": [
+        {
+          "tipo": "butterworth",
+          "fc": 100.0,
+          "q": 0.7071,
+          "ganancia_db": 0.0
+        },
+        {
+          "tipo": "none",
+          "fc": 177.0,
+          "q": 2.0,
+          "ganancia_db": 0.0
+        }
+      ]
+    }
+  }
+}
