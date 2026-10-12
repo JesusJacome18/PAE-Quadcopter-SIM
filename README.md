@@ -8,11 +8,11 @@
 <a href="https://primbiolab.org/"><img src="https://img.shields.io/badge/Semillero-PRIMBIO-ff2bd6?style=for-the-badge&labelColor=05070f"/></a>
 <img src="https://img.shields.io/badge/UNAL-Sede%20La%20Paz-7cff6b?style=for-the-badge&labelColor=05070f"/>
 
-<img src="https://img.shields.io/badge/QuadSIM--PRIMBIO-v3.0-00e5ff?style=flat-square&labelColor=05070f"/>
+<img src="https://img.shields.io/badge/QuadSIM--PRIMBIO-v3.0.1-00e5ff?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/python-3.10%2B-00e5ff?style=flat-square&logo=python&logoColor=white&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/GUI-PySide6%20%2B%20pyqtgraph-00e5ff?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/n%C3%BAcleo-solo%20numpy-00e5ff?style=flat-square&labelColor=05070f"/>
-<img src="https://img.shields.io/badge/pruebas-219%20pasando-7cff6b?style=flat-square&labelColor=05070f"/>
+<img src="https://img.shields.io/badge/pruebas-222%20pasando-7cff6b?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/f%C3%ADsica-RK4%20%40%201%20kHz-ff2bd6?style=flat-square&labelColor=05070f"/>
 
 <br/><br/>
@@ -32,7 +32,7 @@
 
 ## ◈ Qué es
 
-**QuadSIM-PRIMBIO** (versión 3.0; el repositorio conserva el nombre `PAE-Quadcopter-SIM`) es
+**QuadSIM-PRIMBIO** (versión 3.0.1; el repositorio conserva el nombre `PAE-Quadcopter-SIM`) es
 el simulador de un **Proyecto Académico Especial (PAE)** de Ingeniería Mecatrónica de la
 **Universidad Nacional de Colombia, Sede La Paz** (Valledupar), desarrollado dentro del
 **Semillero de Investigación [PRIMBIO](https://primbiolab.org/)** (*Plataformas Robóticas
@@ -133,7 +133,7 @@ original. Los datos son coherentes entre sí: el acelerador de vuelo estacionari
 **4. Construir encima, verificando cada bloque.** Sobre ese núcleo se agregaron sensores con
 vibración real de las hélices, tres estimadores, cinco controladores de posición, perturbaciones,
 barridos automáticos y aprendizaje por refuerzo offline. Ningún resultado se reporta sin
-ejecutarlo: 219 pruebas automáticas y un script de verificación numérica respaldan las
+ejecutarlo: 222 pruebas automáticas y un script de verificación numérica respaldan las
 cifras del documento del modelo.
 
 **5. Pedir que alguien busque los errores.** En octubre de 2026 una revisión técnica
@@ -303,9 +303,19 @@ Para compilarlo en tu propio equipo Windows con Python 3.10+, basta con hacer do
 [`packaging/QuadSIM-PRIMBIO.spec`](packaging/QuadSIM-PRIMBIO.spec) (modo de una carpeta) y deja
 `QuadSIM-PRIMBIO-win64.zip`. El flujo
 [`.github/workflows/build-windows.yml`](.github/workflows/build-windows.yml) hace lo mismo en una
-máquina Windows de GitHub Actions: corre un subconjunto de pruebas, compila, abre el ejecutable
-con un ejemplo en marcha y comprueba que siga vivo a los 20 s, y publica el zip como artefacto
-(y en *Releases* cuando se etiqueta una versión `v*`).
+máquina Windows de GitHub Actions: corre un subconjunto de pruebas, compila, ejecuta
+`QuadSIM-PRIMBIO.exe --autoprueba` sobre la pantalla real de Windows (revisa que carguen los
+cinco controladores y los barridos, que los 76 campos numéricos muestren su valor y que ningún
+paso del tour quede recortado), abre el ejecutable con un ejemplo en marcha y comprueba que
+siga vivo a los 20 s, y publica el zip como artefacto (y en *Releases* cuando se etiqueta una
+versión `v*`). La misma autoprueba se puede correr en cualquier equipo:
+`QuadSIM-PRIMBIO.exe --autoprueba informe.txt` deja el resultado en `informe.txt`.
+
+**Cambios de la versión 3.0.1.** Corrige tres fallas que solo aparecían en el ejecutable de
+Windows: los controladores de posición y los barridos no se incluían en el paquete (la lista de
+controladores y la de experimentos quedaban vacías); con PySide6 6.12 los campos numéricos se
+veían vacíos; y la tarjeta del tour recortaba la primera y la última línea. Además, todos los
+campos usan punto decimal sin importar la configuración regional del equipo.
 
 ### Desde el código fuente
 
@@ -345,7 +355,7 @@ Las corridas usan semillas fijas, así que los números se repiten idénticos.
 
 ```bash
 # Windows: set PYTHONPATH=.      Linux/macOS: export PYTHONPATH=.
-python -m pytest -q                                   # 219 pruebas (+4 de tiempo de cómputo: PERF_TESTS=1)
+python -m pytest -q                                   # 222 pruebas (+4 de tiempo de cómputo: PERF_TESTS=1)
 python experiments/model_verification.py              # evidencia numérica del modelo (~1 min)
 python experiments/benchmark_controllers.py \
   --trajectories lemniscate circle lemniscate_fast step_waypoints \
@@ -407,7 +417,7 @@ Practice*, Springer; repositorio [CopterSim](https://github.com/XunhuaDai/Copter
 @misc{quadsim_primbio_2026,
   author       = {Jácome, Jesús Daniel and Burgos Flórez, Francisco Javier},
   title        = {QuadSIM-PRIMBIO: simulador 6-DOF para sintonía de controladores de cuadricóptero},
-  version      = {3.0},
+  version      = {3.0.1},
   year         = {2026},
   howpublished = {Proyecto Académico Especial, Semillero PRIMBIO, Grupo IAM-NANO, Universidad Nacional de Colombia, Sede La Paz},
   url          = {https://github.com/JesusJacome18/PAE-Quadcopter-SIM}

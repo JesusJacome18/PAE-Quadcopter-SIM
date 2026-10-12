@@ -33,11 +33,23 @@ jobs:
       - name: Compilar (PyInstaller, una carpeta)
         run: pyinstaller --noconfirm packaging/QuadSIM-PRIMBIO.spec
 
-      - name: Prueba de humo del ejecutable
+      - name: Autoprueba del ejecutable (pantalla real de Windows)
         shell: pwsh
         run: |
-          $env:QT_QPA_PLATFORM = "offscreen"
           $env:PAE_SIM_SETTINGS = "$env:RUNNER_TEMP\qs.ini"
+          $inf = "$env:RUNNER_TEMP\autoprueba.txt"
+          $p = Start-Process -FilePath "dist\QuadSIM-PRIMBIO\QuadSIM-PRIMBIO.exe" -ArgumentList "--no-welcome","--autoprueba","`"$inf`"" -PassThru
+          if (-not $p.WaitForExit(180000)) { Stop-Process -Id $p.Id -Force; throw "La autoprueba no termino en 3 minutos" }
+          $txt = if (Test-Path $inf) { Get-Content $inf -Raw } else { "sin informe" }
+          Write-Output $txt
+          $msg = $txt -replace "%","%25" -replace "`r","" -replace "`n","%0A"
+          Write-Output "::notice title=Autoprueba::$msg"
+          if ($p.ExitCode -ne 0) { throw "La autoprueba encontro fallas (codigo $($p.ExitCode))" }
+
+      - name: Prueba de humo (ejemplo 05 en vuelo, 20 s)
+        shell: pwsh
+        run: |
+          $env:PAE_SIM_SETTINGS = "$env:RUNNER_TEMP\qs2.ini"
           $p = Start-Process -FilePath "dist\QuadSIM-PRIMBIO\QuadSIM-PRIMBIO.exe" -ArgumentList "--no-welcome","--example","05","--play" -PassThru
           Start-Sleep -Seconds 20
           if ($p.HasExited) { throw "El ejecutable se cerro antes de tiempo (codigo $($p.ExitCode))" }

@@ -425,6 +425,15 @@ class TourCard(QFrame):
         self.body.setText(step.body)
         self.btn_prev.setEnabled(i > 0)
         self.btn_next.setText("Terminar" if i == n - 1 else "Siguiente")
+        # Alto explícito de los textos con ajuste de línea: el tamaño de letra
+        # llega por la hoja de estilos, y con las fuentes de Windows el alto
+        # que calcula adjustSize() sin esto se queda corto y recorta la
+        # primera y la última línea.
+        m = self.layout().contentsMargins()
+        w = self.width() - m.left() - m.right()
+        for lb in (self.title, self.body):
+            lb.ensurePolished()
+            lb.setMinimumHeight(max(lb.heightForWidth(w), lb.fontMetrics().height()) + 2)
         self.adjustSize()
 
 

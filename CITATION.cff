@@ -9,7 +9,7 @@ authors:
   - given-names: "Francisco Javier"
     family-names: "Burgos Flórez"
     affiliation: "Universidad Nacional de Colombia, Sede La Paz — Semillero PRIMBIO, Grupo IAM-NANO"
-date-released: 2026-10-07
-version: "3.0"
+date-released: 2026-10-12
+version: "3.0.1"
 repository-code: "https://github.com/JesusJacome18/PAE-Quadcopter-SIM"
 keywords: [quadcopter, simulación, control, MPC, PID, reinforcement learning, PRIMBIO]

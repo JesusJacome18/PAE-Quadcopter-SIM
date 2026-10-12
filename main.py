@@ -7,6 +7,7 @@ QuadSIM-PRIMBIO (repositorio PAE Quadcopter SIM) — punto de entrada de la GUI.
     python main.py --example 05    # abre el ejemplo 05 de la carpeta examples/
     python main.py --scenario mi_escenario.json
     python main.py --tour          # arranca directamente el tour guiado
+    python main.py --autoprueba informe.txt   # revisa la instalación y sale
 
 Variables de entorno útiles:
     PAE_NO_GL=1                    fuerza la vista 3D de respaldo (sin OpenGL)
@@ -49,6 +50,9 @@ def main(argv=None) -> int:
     ap.add_argument("--tour", action="store_true", help="iniciar el tour guiado")
     ap.add_argument("--no-welcome", action="store_true",
                     help="no mostrar la bienvenida del primer arranque")
+    ap.add_argument("--autoprueba", default=None, metavar="INFORME",
+                    help="revisar la instalación (módulos, campos, tour), escribir el "
+                         "informe en INFORME y salir con código 0 si todo está bien")
     args = ap.parse_args(argv)
 
     # Alta densidad de píxeles en Windows: escalado fraccional sin redondeo
@@ -65,6 +69,15 @@ def main(argv=None) -> int:
     app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("UNAL Sede La Paz")
     app.setStyle("Fusion")
+    # Punto decimal en todos los campos, sea cual sea la configuración
+    # regional de Windows: con es-CO los campos mostraban «7,812» mientras
+    # que gráficas, documentos y escenarios usan «7.812», y un «0.5» escrito
+    # a mano podía leerse como separador de miles.
+    from PySide6.QtCore import QLocale
+    loc = QLocale(QLocale.Language.English, QLocale.Country.UnitedStates)
+    loc.setNumberOptions(QLocale.NumberOption.OmitGroupSeparator
+                         | QLocale.NumberOption.RejectGroupSeparator)
+    QLocale.setDefault(loc)
 
     from gui.main_window import MainWindow
     win = MainWindow(theme_name="light" if args.light else "dark")
@@ -94,7 +107,19 @@ def main(argv=None) -> int:
         QTimer.singleShot(0, lambda: win.load_scenario(scen))
     elif args.play:
         win.ctl.play()
-    if args.tour:
+    if args.autoprueba:
+        def _autoprueba():
+            from gui.autoprueba import ejecutar
+            try:
+                fallas, info = ejecutar(win)
+            except Exception:  # noqa: BLE001
+                fallas, info = ["excepción:\n" + traceback.format_exc()], []
+            with open(args.autoprueba, "w", encoding="utf-8") as fh:
+                fh.write("\n".join(info + [f"FALLA: {f}" for f in fallas]
+                                    + ([] if fallas else ["OK"])) + "\n")
+            app.exit(1 if fallas else 0)
+        QTimer.singleShot(1500, _autoprueba)
+    elif args.tour:
         QTimer.singleShot(300, win.start_tour)
     elif not (args.no_welcome or scen):
         QTimer.singleShot(400, win.maybe_show_welcome)

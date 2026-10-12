@@ -91,7 +91,10 @@ def spin(vmin: float, vmax: float, value: float, step: float = 0.1, decimals: in
     s.setSingleStep(step)
     s.setValue(value)
     s.setKeyboardTracking(False)
-    s.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+    # Las flechas se ocultan con la hoja de estilos (ancho 0), no con
+    # NoButtons: en PySide6 6.12 NoButtons + hoja de estilos deja el campo de
+    # texto interno con 1 px de ancho y el número no se ve.
+    s.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.UpDownArrows)
     s.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
     s.setAccelerated(True)
     if tip:
