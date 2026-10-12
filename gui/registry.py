@@ -7,7 +7,7 @@ Acceso tolerante a los registros que escriben otros módulos del proyecto:
   quadsim.control.position.CONTROLLERS     {clave: clase}
   quadsim.sweeps (run_sweep, PRESETS)
 
-Contrato de PARAMS (docs/CONTEXTO_EQUIPO.md):
+Contrato de PARAMS (lo comparten trayectorias y controladores):
     [(clave, etiqueta, default, min, max, paso, unidad), ...]
 
 Si un registro no existe todavía (o falla al importar), la GUI no se cae:
