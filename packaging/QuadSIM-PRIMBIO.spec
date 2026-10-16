@@ -34,6 +34,8 @@ datas = [
     (os.path.join(ROOT, "models"), "models"),
     (os.path.join(ROOT, "assets", "icono.png"), "assets"),
     (os.path.join(ROOT, "docs", "Modelo_Matematico_Simulador_3ra_Edicion.pdf"), "docs"),
+    (os.path.join(ROOT, "docs", "DATASET.md"), "docs"),
+    (os.path.join(ROOT, "assets", "dataset"), os.path.join("assets", "dataset")),
 ]
 hidden = (_modulos_del_proyecto("quadsim") + _modulos_del_proyecto("gui")
           + collect_submodules("pyqtgraph", filter=lambda n: not n.startswith(("pyqtgraph.examples", "pyqtgraph.jupyter", "pyqtgraph.util.cupy", "pyqtgraph.canvas"))) + ["OpenGL", "OpenGL.GL", "OpenGL.platform.win32"])

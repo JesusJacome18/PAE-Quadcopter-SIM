@@ -8,11 +8,11 @@
 <a href="https://primbiolab.org/"><img src="https://img.shields.io/badge/Semillero-PRIMBIO-ff2bd6?style=for-the-badge&labelColor=05070f"/></a>
 <img src="https://img.shields.io/badge/UNAL-Sede%20La%20Paz-7cff6b?style=for-the-badge&labelColor=05070f"/>
 
-<img src="https://img.shields.io/badge/QuadSIM--PRIMBIO-v3.0.1-00e5ff?style=flat-square&labelColor=05070f"/>
+<img src="https://img.shields.io/badge/QuadSIM--PRIMBIO-v3.1.0-00e5ff?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/python-3.10%2B-00e5ff?style=flat-square&logo=python&logoColor=white&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/GUI-PySide6%20%2B%20pyqtgraph-00e5ff?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/n%C3%BAcleo-solo%20numpy-00e5ff?style=flat-square&labelColor=05070f"/>
-<img src="https://img.shields.io/badge/pruebas-222%20pasando-7cff6b?style=flat-square&labelColor=05070f"/>
+<img src="https://img.shields.io/badge/pruebas-230%20pasando-7cff6b?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/f%C3%ADsica-RK4%20%40%201%20kHz-ff2bd6?style=flat-square&labelColor=05070f"/>
 
 <br/><br/>
@@ -24,7 +24,8 @@
 [`Ruta de presentación`](docs/RUTA_PRESENTACION.md) ·
 [`Guía de la interfaz`](docs/GUI.md) ·
 [`Barridos`](docs/BARRIDOS.md) ·
-[`Aprendizaje por refuerzo`](docs/RL.md)
+[`Aprendizaje por refuerzo`](docs/RL.md) ·
+[`Dataset de vuelo`](docs/DATASET.md)
 
 </div>
 
@@ -32,7 +33,7 @@
 
 ## ◈ Qué es
 
-**QuadSIM-PRIMBIO** (versión 3.0.1; el repositorio conserva el nombre `PAE-Quadcopter-SIM`) es
+**QuadSIM-PRIMBIO** (versión 3.1.0; el repositorio conserva el nombre `PAE-Quadcopter-SIM`) es
 el simulador de un **Proyecto Académico Especial (PAE)** de Ingeniería Mecatrónica de la
 **Universidad Nacional de Colombia, Sede La Paz** (Valledupar), desarrollado dentro del
 **Semillero de Investigación [PRIMBIO](https://primbiolab.org/)** (*Plataformas Robóticas
@@ -73,6 +74,14 @@ El simulador sirve para tres cosas:
 <td><img src="docs/screenshots/06_modelo.png"/><br/><b>06 · Vehículo y modelo.</b> Cada parámetro con su unidad y su fuente bibliográfica, cantidades derivadas y las tasas de simulación.</td>
 </tr>
 </table>
+
+**Dataset de vuelo para modelos dinámicos.** *Simulación → Generar dataset de vuelo…* (o
+`experiments/generar_dataset.py`) produce vuelos variados del PAE-X450 con el PWM de los cuatro
+motores, el estado real, sus derivadas, la lectura de cada sensor y las perturbaciones, en CSV, con
+la partición entrenamiento / validación / prueba hecha por vuelo. Los motores se excitan con una
+señal APRBS para que el PWM no quede determinado por el controlador. Pensado para entrenar redes
+neuronales que aprendan la dinámica del dron. Formato, columnas y verificación en
+[`docs/DATASET.md`](docs/DATASET.md).
 
 ### Primeros pasos dentro del programa
 
@@ -133,7 +142,7 @@ original. Los datos son coherentes entre sí: el acelerador de vuelo estacionari
 **4. Construir encima, verificando cada bloque.** Sobre ese núcleo se agregaron sensores con
 vibración real de las hélices, tres estimadores, cinco controladores de posición, perturbaciones,
 barridos automáticos y aprendizaje por refuerzo offline. Ningún resultado se reporta sin
-ejecutarlo: 222 pruebas automáticas y un script de verificación numérica respaldan las
+ejecutarlo: 230 pruebas automáticas y un script de verificación numérica respaldan las
 cifras del documento del modelo.
 
 **5. Pedir que alguien busque los errores.** En octubre de 2026 una revisión técnica
@@ -311,6 +320,10 @@ siga vivo a los 20 s, y publica el zip como artefacto (y en *Releases* cuando se
 versión `v*`). La misma autoprueba se puede correr en cualquier equipo:
 `QuadSIM-PRIMBIO.exe --autoprueba informe.txt` deja el resultado en `informe.txt`.
 
+**Cambios de la versión 3.1.0.** Generador de datasets de vuelo para entrenar modelos dinámicos
+(*Simulación → Generar dataset de vuelo…*, `experiments/generar_dataset.py`,
+[`docs/DATASET.md`](docs/DATASET.md)).
+
 **Cambios de la versión 3.0.1.** Corrige tres fallas que solo aparecían en el ejecutable de
 Windows: los controladores de posición y los barridos no se incluían en el paquete (la lista de
 controladores y la de experimentos quedaban vacías); con PySide6 6.12 los campos numéricos se
@@ -346,7 +359,7 @@ python main.py --tour             # arranca con el tour guiado
 Para presentar el simulador paso a paso, con qué configurar y qué se espera ver en cada caso:
 **[`docs/RUTA_PRESENTACION.md`](docs/RUTA_PRESENTACION.md)**. Para revisarlo a mano antes de una
 presentación, en el mismo equipo donde se va a mostrar:
-**[`docs/PROTOCOLO_PRUEBAS.md`](docs/PROTOCOLO_PRUEBAS.md)**, con 87 casos de prueba manuales
+**[`docs/PROTOCOLO_PRUEBAS.md`](docs/PROTOCOLO_PRUEBAS.md)**, con 89 casos de prueba manuales
 (qué tocar, qué debe aparecer y qué indica un defecto).
 
 ### Reproducir los resultados
@@ -355,12 +368,13 @@ Las corridas usan semillas fijas, así que los números se repiten idénticos.
 
 ```bash
 # Windows: set PYTHONPATH=.      Linux/macOS: export PYTHONPATH=.
-python -m pytest -q                                   # 222 pruebas (+4 de tiempo de cómputo: PERF_TESTS=1)
+python -m pytest -q                                   # 230 pruebas (+4 de tiempo de cómputo: PERF_TESTS=1)
 python experiments/model_verification.py              # evidencia numérica del modelo (~1 min)
 python experiments/benchmark_controllers.py \
   --trajectories lemniscate circle lemniscate_fast step_waypoints \
   --scenarios nominal wind payload mag_emi --seeds 1 2 3   # banco de controladores (~25 min)
 python experiments/sweep_cli.py --help                # barridos de sensibilidad
+python experiments/generar_dataset.py                 # dataset de vuelo: 100 vuelos a 100 Hz (~5 min)
 bash docs/modelo/build.sh --verify                    # recompila el PDF (requiere XeLaTeX)
 ```
 
@@ -380,14 +394,15 @@ PAE-Quadcopter-SIM/
 │   ├── trajectories.py       7 generadores con derivadas analíticas
 │   ├── control/              PID de actitud, SIMC y 5 controladores de posición
 │   ├── rl/                   entorno rápido, PPO en numpy, políticas
-│   └── sweeps.py             motor de barridos de sensibilidad
+│   ├── sweeps.py             motor de barridos de sensibilidad
+│   └── dataset.py            generador de datasets de vuelo (y dataset_verificacion.py)
 ├── gui/  ·  main.py          interfaz PySide6 (6 páginas, tour guiado, galería de ejemplos)
 ├── packaging/  ·  build_exe.bat   compilación del ejecutable de Windows (PyInstaller)
 ├── examples/                 11 escenarios de ejemplo (.json)
-├── experiments/              banco de controladores, barridos, RL, verificación del modelo
+├── experiments/              banco de controladores, barridos, RL, dataset, verificación del modelo
 ├── models/                   pesos de las políticas RL entrenadas
 ├── docs/                     modelo matemático (PDF/LaTeX), guías, capturas y documentos de registro
-└── tests/                    223 pruebas automáticas (4 de tiempo de cómputo, opcionales)
+└── tests/                    234 pruebas automáticas (4 de tiempo de cómputo, opcionales)
 ```
 
 <img src="assets/divider.svg" width="100%"/>
@@ -417,7 +432,7 @@ Practice*, Springer; repositorio [CopterSim](https://github.com/XunhuaDai/Copter
 @misc{quadsim_primbio_2026,
   author       = {Jácome, Jesús Daniel and Burgos Flórez, Francisco Javier},
   title        = {QuadSIM-PRIMBIO: simulador 6-DOF para sintonía de controladores de cuadricóptero},
-  version      = {3.0.1},
+  version      = {3.1.0},
   year         = {2026},
   howpublished = {Proyecto Académico Especial, Semillero PRIMBIO, Grupo IAM-NANO, Universidad Nacional de Colombia, Sede La Paz},
   url          = {https://github.com/JesusJacome18/PAE-Quadcopter-SIM}

@@ -711,7 +711,7 @@ ejemplo no hace falta preparar nada.
 
 ---
 
-## 13. Exportar CSV
+## 13. Exportar CSV y generar datasets
 
 ### CSV-01 · Exportar una corrida
 - **Pasos:** Ctrl+R; ▶ hasta 5.00 s exactos (o 50 veces F6); Ctrl+E; guarde en una carpeta con
@@ -726,6 +726,25 @@ ejemplo no hace falta preparar nada.
   permiso de escritura (por ejemplo `C:\Windows`); c) tras una corrida de varios minutos a ×4.
 - **Resultado esperado:** a) un archivo con una sola fila; b) un error claro en el registro,
   sin cierre del programa; c) hasta 60 000 filas (600 s de historia) en uno o dos segundos.
+- [ ] Pasa  [ ] Falla
+
+### DAT-01 · Generar un dataset de vuelo pequeño
+- **Pasos:** Simulación → Generar dataset de vuelo…; Vuelos = 7, Tasa = 100 Hz, Semilla =
+  2026; deje la carpeta propuesta (Documentos\QuadSIM-PRIMBIO\dataset_pae_x450) y pulse
+  Generar.
+- **Resultado esperado:** la simulación en vivo queda en pausa; la barra avanza de 1 a 7 con
+  una línea por vuelo (tipo, segundos de vuelo, filas). En unos dos minutos termina con
+  «verificación: OK» y «Listo». «Abrir carpeta» muestra `vuelos\` (7 CSV), `vuelos.csv`,
+  `columnas.csv`, `metadatos.json`, `verificacion.md`, `LEEME.md` y `cargar_dataset.py`. Cada
+  CSV abre en Excel con 57 columnas, la primera `t`, y los `pwm_1`… `pwm_4` entre 1000 y 2000.
+- [ ] Pasa  [ ] Falla
+
+### DAT-02 · Cancelar y cerrar
+- **Pasos:** con Vuelos = 50, pulse Generar y, al segundo vuelo, Cancelar. Luego intente
+  cerrar la ventana con la X mientras otra generación está en curso.
+- **Resultado esperado:** al terminar el vuelo en curso aparece «Generación cancelada»,
+  los controles se habilitan de nuevo y el programa sigue respondiendo. Con una generación en
+  curso, la X no cierra la ventana: pide cancelar y la cierra en el siguiente intento.
 - [ ] Pasa  [ ] Falla
 
 ---
@@ -878,6 +897,8 @@ página, los valores que había puesto y, si es posible, una captura.
 | ESC-04 | [ ] | [ ] | |
 | CSV-01 | [ ] | [ ] | |
 | CSV-02 | [ ] | [ ] | |
+| DAT-01 | [ ] | [ ] | |
+| DAT-02 | [ ] | [ ] | |
 | EST-01 | [ ] | [ ] | |
 | EST-02 | [ ] | [ ] | |
 | EST-03 | [ ] | [ ] | |

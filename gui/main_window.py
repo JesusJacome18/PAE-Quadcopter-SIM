@@ -633,6 +633,10 @@ class MainWindow(QMainWindow):
         A("step", "Avanzar 0.1 s", lambda: self.ctl.step_once(0.1), "F6", "", m)
         A("reset", "Reiniciar la corrida", self.ctl.reset, "Ctrl+R",
           "Conserva ganancias, filtros y perturbaciones.", m)
+        m.addSeparator()
+        A("dataset", "Generar dataset de vuelo…", self.show_dataset_dialog, None,
+          "Vuelos simulados del PAE-X450 con PWM, estado real y sensores, en CSV, "
+          "para entrenar modelos dinámicos.", m)
 
         m = mb.addMenu("&Ver")
         for i, p in enumerate(self.pages):
@@ -694,6 +698,13 @@ class MainWindow(QMainWindow):
         return True
 
     # ------------------------------------------------------------ diálogos
+    def show_dataset_dialog(self):
+        from .dataset_dialog import DatasetDialog
+        self.ctl.pause()
+        dlg = DatasetDialog(self)
+        dlg.exec()
+        return dlg
+
     def show_examples(self):
         dlg = ExamplesDialog(self)
         dlg.open_file_requested.connect(lambda: QTimer.singleShot(0, self.open_scenario_dialog))

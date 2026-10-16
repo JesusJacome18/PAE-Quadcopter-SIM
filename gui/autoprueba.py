@@ -66,6 +66,22 @@ def ejecutar(win) -> Tuple[List[str], List[str]]:
     else:
         info.append(f"barridos predefinidos: {len(getattr(mod, 'PRESETS', {}))}")
 
+    # generador de datasets: módulo, verificación y archivos que copia
+    try:
+        import os
+        from quadsim import dataset as ds
+        from quadsim import dataset_verificacion  # noqa: F401
+        faltan = [f for f in (os.path.join(ds._RAIZ, "docs", "DATASET.md"),
+                              os.path.join(ds._RAIZ, "assets", "dataset", "cargar_dataset.py"))
+                  if not os.path.isfile(f)]
+        if faltan:
+            fallas.append(f"faltan archivos del generador de datasets: {faltan}")
+        else:
+            info.append(f"generador de datasets: {len(ds.TIPOS)} tipos de vuelo, "
+                        f"{len(ds.NOMBRES)} columnas")
+    except Exception as e:  # noqa: BLE001
+        fallas.append(f"generador de datasets no disponible: {e}")
+
     # cada página visible al menos una vez, para que todo quede maquetado
     for i in range(len(win.pages)):
         win.set_page(i)

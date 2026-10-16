@@ -105,7 +105,7 @@ python -m pytest -q
 - El segundo regenera toda la evidencia numérica del modelo (Secc. 3–14:
   convergencia de RK4, conservación de energía, Dzhanibekov, hover, etc.)
   en ~1 min.
-- El tercero corre las 222 pruebas automáticas.
+- El tercero corre las 230 pruebas automáticas.
 
 Consejo para la presentación: tener abierto el PDF en la tabla del banco y
 correr la demo E en vivo; los números no son idénticos a los de la tabla

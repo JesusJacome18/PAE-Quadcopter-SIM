@@ -184,6 +184,11 @@ class PositionCommand:
 class Simulation:
     def __init__(self, cfg: SimConfig = None):
         self.cfg = cfg or SimConfig()
+        # Excitacion de entrada opcional (generacion de datasets e
+        # identificacion en lazo cerrado): funcion t -> 4 incrementos de
+        # acelerador que se suman a la salida del mezclador. None = apagada.
+        self.input_dither = None
+        self.last_env = None
         self.position_controller = None
         self.trajectory = None
         self.reset()
@@ -466,6 +471,7 @@ class Simulation:
             self._apply_payload(ev)
         airspeed = math.sqrt(x[3] ** 2 + x[4] ** 2 + x[5] ** 2)
         env = self.dist.update(self.t, self.dt_ctrl, -x[2], airspeed, self.sigma_applied)
+        self.last_env = env
         self.sensors.mag_emi_B = self.dist.emi_B
 
         # ---- sensores -------------------------------------------------------
@@ -507,6 +513,9 @@ class Simulation:
                                  self.yaw_rate_ff)
             tau = self.att_ctrl.torque()
             self.sigma = self.mixer.allocate(self.thrust_cmd, tau)
+            if self.input_dither is not None:
+                d = self.input_dither(self.t)
+                self.sigma = [min(1.0, max(0.0, s + di)) for s, di in zip(self.sigma, d)]
         else:
             self.att_ctrl.reset()
             self.vert_ctrl.reset()

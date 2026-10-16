@@ -19,3 +19,6 @@ experiments/results/model_verification/
 build/
 dist/
 QuadSIM-PRIMBIO-win64.zip
+
+# datasets generados (se entregan aparte, no van en el repositorio)
+experiments/results/dataset_pae_x450/

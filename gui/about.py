@@ -13,7 +13,7 @@ from __future__ import annotations
 APP_NAME = "QuadSIM-PRIMBIO"
 #: Nombre del repositorio de código, que se conserva por compatibilidad.
 REPO_NAME = "PAE Quadcopter SIM"
-APP_VERSION = "3.0.1"
+APP_VERSION = "3.1.0"
 APP_YEAR = 2026
 
 #: Autores con su papel, en el orden en que deben figurar.
