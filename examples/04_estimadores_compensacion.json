@@ -1,5 +1,5 @@
 {
-  "formato": "pae-quadcopter-sim/escenario",
+  "formato": "quadsim/escenario",
   "version": 1,
   "titulo": "Estimadores y compensación de aceleración",
   "nivel": "Intermedio",

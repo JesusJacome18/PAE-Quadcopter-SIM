@@ -1,5 +1,5 @@
 {
-  "formato": "pae-quadcopter-sim/escenario",
+  "formato": "quadsim/escenario",
   "version": 1,
   "titulo": "Interferencia magnética: PID frente a MPC",
   "nivel": "Avanzado",

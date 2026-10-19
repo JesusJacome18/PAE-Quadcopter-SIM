@@ -1,4 +1,4 @@
-# Protocolo de pruebas manuales de QuadSIM-PRIMBIO
+# Protocolo de pruebas manuales de QuadSim
 
 Este protocolo sirve para dos cosas a la vez: recorrer con las manos cada función del
 programa, para conocerla antes de presentarla, y descartar errores en la computadora donde
@@ -49,7 +49,7 @@ Trayectorias, Perturbaciones, Sensores, Barridos y Modelo.
 - **Resultado esperado:** en menos de unos 10 s aparece la ventana en tema oscuro con la
   página Actitud y, encima, la bienvenida con tres botones: «Ahora no», «Ver ejemplos» e
   «Iniciar el tour». El reloj marca `0.00` y debajo dice «en pausa». El registro (abajo)
-  muestra «QuadSIM-PRIMBIO listo. Vehículo PAE-X450…».
+  muestra «QuadSim listo. Vehículo PAE-X450…».
 - **Es un error si:** la bienvenida aparece vacía, detrás de la ventana o dos veces.
 - [ ] Pasa  [ ] Falla — Notas: ______________________
 
@@ -197,10 +197,8 @@ Trayectorias, Perturbaciones, Sensores, Barridos y Modelo.
 ### MEN-03 · Acerca de
 - **Para qué sirve:** revisar los datos de autoría que se registran.
 - **Pasos:** Ayuda → Acerca de.
-- **Resultado esperado:** nombre QuadSIM-PRIMBIO, versión 3.0, autores (Jesús Daniel
-  Jácome; Francisco Javier Burgos Flórez como director), Proyecto Académico Especial,
-  Semillero PRIMBIO, grupo IAM-NANO, Universidad Nacional de Colombia, Sede La Paz, el año y
-  las bibliotecas con su licencia. El enlace del repositorio abre el navegador.
+- **Resultado esperado:** nombre QuadSim, versión 1.0.0, autores (Jesús Daniel Jácome;
+  Francisco Javier Burgos Flórez como director), el año y las bibliotecas con su licencia.
 - **Es un error si:** algún dato está mal escrito o cortado.
 - [ ] Pasa  [ ] Falla
 
@@ -730,7 +728,7 @@ ejemplo no hace falta preparar nada.
 
 ### DAT-01 · Generar un dataset de vuelo pequeño
 - **Pasos:** Simulación → Generar dataset de vuelo…; Vuelos = 7, Tasa = 100 Hz, Semilla =
-  2026; deje la carpeta propuesta (Documentos\QuadSIM-PRIMBIO\dataset_pae_x450) y pulse
+  2026; deje la carpeta propuesta (Documentos\QuadSim\dataset_pae_x450) y pulse
   Generar.
 - **Resultado esperado:** la simulación en vivo queda en pausa; la barra avanza de 1 a 7 con
   una línea por vuelo (tipo, segundos de vuelo, filas). En unos dos minutos termina con

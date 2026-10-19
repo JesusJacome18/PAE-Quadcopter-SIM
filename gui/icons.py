@@ -211,7 +211,7 @@ def icon_file(name: str, color, size: int = 12) -> str:
     key = (name, QColor(color).name(), size)
     if key in _FILE_CACHE and os.path.exists(_FILE_CACHE[key]):
         return _FILE_CACHE[key]
-    d = os.path.join(tempfile.gettempdir(), "pae_sim_gui_icons")
+    d = os.path.join(tempfile.gettempdir(), "quadsim_iconos")
     os.makedirs(d, exist_ok=True)
     path = os.path.join(d, f"{name}_{key[1][1:]}_{size}.png")
     pm = QPixmap(size * 2, size * 2)

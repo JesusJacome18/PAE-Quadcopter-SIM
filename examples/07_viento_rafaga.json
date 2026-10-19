@@ -1,5 +1,5 @@
 {
-  "formato": "pae-quadcopter-sim/escenario",
+  "formato": "quadsim/escenario",
   "version": 1,
   "titulo": "Viento y ráfaga con control de posición",
   "nivel": "Intermedio",

@@ -1,5 +1,5 @@
 {
-  "formato": "pae-quadcopter-sim/escenario",
+  "formato": "quadsim/escenario",
   "version": 1,
   "titulo": "Figura en 8 con MPC",
   "nivel": "Intermedio",

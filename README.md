@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/banner.svg" alt="QuadSIM-PRIMBIO — simulador 6-DOF de cuadricóptero" width="100%"/>
+<img src="assets/banner.svg" alt="QuadSim — simulador 6-DOF de cuadricóptero" width="100%"/>
 
 <br/>
 
@@ -8,11 +8,11 @@
 <a href="https://primbiolab.org/"><img src="https://img.shields.io/badge/Semillero-PRIMBIO-ff2bd6?style=for-the-badge&labelColor=05070f"/></a>
 <img src="https://img.shields.io/badge/UNAL-Sede%20La%20Paz-7cff6b?style=for-the-badge&labelColor=05070f"/>
 
-<img src="https://img.shields.io/badge/QuadSIM--PRIMBIO-v3.1.0-00e5ff?style=flat-square&labelColor=05070f"/>
+<img src="https://img.shields.io/badge/QuadSim-v1.0.0-00e5ff?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/python-3.10%2B-00e5ff?style=flat-square&logo=python&logoColor=white&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/GUI-PySide6%20%2B%20pyqtgraph-00e5ff?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/n%C3%BAcleo-solo%20numpy-00e5ff?style=flat-square&labelColor=05070f"/>
-<img src="https://img.shields.io/badge/pruebas-230%20pasando-7cff6b?style=flat-square&labelColor=05070f"/>
+<img src="https://img.shields.io/badge/pruebas-231%20pasando-7cff6b?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/f%C3%ADsica-RK4%20%40%201%20kHz-ff2bd6?style=flat-square&labelColor=05070f"/>
 
 <br/><br/>
@@ -33,7 +33,7 @@
 
 ## ◈ Qué es
 
-**QuadSIM-PRIMBIO** (versión 3.1.0; el repositorio conserva el nombre `PAE-Quadcopter-SIM`) es
+**QuadSim** (versión 1.0.0; el repositorio conserva el nombre `PAE-Quadcopter-SIM`) es
 el simulador de un **Proyecto Académico Especial (PAE)** de Ingeniería Mecatrónica de la
 **Universidad Nacional de Colombia, Sede La Paz** (Valledupar), desarrollado dentro del
 **Semillero de Investigación [PRIMBIO](https://primbiolab.org/)** (*Plataformas Robóticas
@@ -118,7 +118,7 @@ timeline
     v2 · Física por eje : Newton–Euler linealizado y desacoplado : Catálogo de 4 vehículos de la literatura : Ganancias SIMC y filtros biquad
     Redefinición del alcance : Separar simulación y telemetría : Hoja de ruta de trayectorias, controladores avanzados, perturbaciones y barridos
     Auditoría del modelo : Errores en datos de la literatura : Sin traslación horizontal : Duda sobre el paso de integración
-    v3 · QuadSIM-PRIMBIO : Modelo 6-DOF no lineal con RK4 a 1 kHz : Vehículo PAE-X450 con datos verificados : 5 controladores, perturbaciones, barridos y RL offline
+    v3 · QuadSim : Modelo 6-DOF no lineal con RK4 a 1 kHz : Vehículo PAE-X450 con datos verificados : 5 controladores, perturbaciones, barridos y RL offline
     Revisión externa : Estadística del banco : Causa de la brecha del RL : Compensación sin sensor de posición : Retardos del ESC y del cómputo
 ```
 
@@ -142,7 +142,7 @@ original. Los datos son coherentes entre sí: el acelerador de vuelo estacionari
 **4. Construir encima, verificando cada bloque.** Sobre ese núcleo se agregaron sensores con
 vibración real de las hélices, tres estimadores, cinco controladores de posición, perturbaciones,
 barridos automáticos y aprendizaje por refuerzo offline. Ningún resultado se reporta sin
-ejecutarlo: 230 pruebas automáticas y un script de verificación numérica respaldan las
+ejecutarlo: 231 pruebas automáticas y un script de verificación numérica respaldan las
 cifras del documento del modelo.
 
 **5. Pedir que alguien busque los errores.** En octubre de 2026 una revisión técnica
@@ -297,38 +297,35 @@ IMU es un supuesto pendiente de medir. La lista completa está en la sección 17
 
 ### Ejecutable para Windows (sin instalar Python)
 
-1. Descarga `QuadSIM-PRIMBIO-win64.zip` desde la sección **Releases** del repositorio (una por
+1. Descarga `QuadSim-1.0.0-win64.zip` desde la sección **Releases** del repositorio (una por
    versión publicada) o, para la última compilación, desde la pestaña **Actions** (artefacto del
    flujo *Ejecutable Windows*).
-2. Descomprímelo completo. Queda la carpeta `QuadSIM-PRIMBIO/` con `QuadSIM-PRIMBIO.exe` y la
-   subcarpeta `_internal/`, que trae Python, las bibliotecas, los 11 ejemplos, los modelos de RL y
-   el PDF del modelo. El ejecutable necesita esa carpeta: no lo saques de ahí.
-3. Abre `QuadSIM-PRIMBIO.exe`. La primera vez Windows puede mostrar «Windows protegió su PC»,
+2. Descomprímelo completo. Queda la carpeta `QuadSim/` con `QuadSim.exe` y la subcarpeta
+   `_internal/`, que trae Python, las bibliotecas, los 11 ejemplos y los modelos de RL. El
+   ejecutable necesita esa carpeta: no lo saques de ahí.
+3. Abre `QuadSim.exe`. La primera vez Windows puede mostrar «Windows protegió su PC»,
    porque el ejecutable no está firmado: «Más información» → «Ejecutar de todas formas». Los
-   resultados de los barridos se guardan en `Documentos/QuadSIM-PRIMBIO/barridos`.
+   resultados de los barridos se guardan en `Documentos/QuadSim/barridos`.
 
 Para compilarlo en tu propio equipo Windows con Python 3.10+, basta con hacer doble clic en
 `build_exe.bat`: crea un entorno virtual, instala las dependencias y PyInstaller, compila con
-[`packaging/QuadSIM-PRIMBIO.spec`](packaging/QuadSIM-PRIMBIO.spec) (modo de una carpeta) y deja
-`QuadSIM-PRIMBIO-win64.zip`. El flujo
+[`packaging/QuadSim.spec`](packaging/QuadSim.spec) (modo de una carpeta) y deja
+`QuadSim-1.0.0-win64.zip`. El flujo
 [`.github/workflows/build-windows.yml`](.github/workflows/build-windows.yml) hace lo mismo en una
 máquina Windows de GitHub Actions: corre un subconjunto de pruebas, compila, ejecuta
-`QuadSIM-PRIMBIO.exe --autoprueba` sobre la pantalla real de Windows (revisa que carguen los
+`QuadSim.exe --autoprueba` sobre la pantalla real de Windows (revisa que carguen los
 cinco controladores y los barridos, que los 76 campos numéricos muestren su valor y que ningún
 paso del tour quede recortado), abre el ejecutable con un ejemplo en marcha y comprueba que
 siga vivo a los 20 s, y publica el zip como artefacto (y en *Releases* cuando se etiqueta una
 versión `v*`). La misma autoprueba se puede correr en cualquier equipo:
-`QuadSIM-PRIMBIO.exe --autoprueba informe.txt` deja el resultado en `informe.txt`.
+`QuadSim.exe --autoprueba informe.txt` deja el resultado en `informe.txt`.
 
-**Cambios de la versión 3.1.0.** Generador de datasets de vuelo para entrenar modelos dinámicos
-(*Simulación → Generar dataset de vuelo…*, `experiments/generar_dataset.py`,
-[`docs/DATASET.md`](docs/DATASET.md)).
-
-**Cambios de la versión 3.0.1.** Corrige tres fallas que solo aparecían en el ejecutable de
-Windows: los controladores de posición y los barridos no se incluían en el paquete (la lista de
-controladores y la de experimentos quedaban vacías); con PySide6 6.12 los campos numéricos se
-veían vacíos; y la tarjeta del tour recortaba la primera y la última línea. Además, todos los
-campos usan punto decimal sin importar la configuración regional del equipo.
+**Versiones.** QuadSim 1.0.0 es la primera versión publicada con este nombre. Las versiones 3.x
+eran las internas del desarrollo, con el nombre de trabajo QuadSIM-PRIMBIO. La 1.0.0 incluye el
+generador de datasets de vuelo para entrenar modelos dinámicos (*Simulación → Generar dataset de
+vuelo…*, [`docs/DATASET.md`](docs/DATASET.md)) y las correcciones del ejecutable de Windows de la
+3.0.1: módulos que no se empaquetaban, campos numéricos vacíos con PySide6 6.12, texto recortado
+en el tour y punto decimal en todos los campos sin importar la configuración regional.
 
 ### Desde el código fuente
 
@@ -364,11 +361,12 @@ presentación, en el mismo equipo donde se va a mostrar:
 
 ### Reproducir los resultados
 
-Las corridas usan semillas fijas, así que los números se repiten idénticos.
+Las corridas usan semillas fijas, así que los números se repiten idénticos. Los experimentos y
+las pruebas necesitan además `pip install -r requirements-dev.txt` (scipy, matplotlib, pytest).
 
 ```bash
 # Windows: set PYTHONPATH=.      Linux/macOS: export PYTHONPATH=.
-python -m pytest -q                                   # 230 pruebas (+4 de tiempo de cómputo: PERF_TESTS=1)
+python -m pytest -q                                   # 231 pruebas (+4 de tiempo de cómputo: PERF_TESTS=1)
 python experiments/model_verification.py              # evidencia numérica del modelo (~1 min)
 python experiments/benchmark_controllers.py \
   --trajectories lemniscate circle lemniscate_fast step_waypoints \
@@ -402,7 +400,7 @@ PAE-Quadcopter-SIM/
 ├── experiments/              banco de controladores, barridos, RL, dataset, verificación del modelo
 ├── models/                   pesos de las políticas RL entrenadas
 ├── docs/                     modelo matemático (PDF/LaTeX), guías, capturas y documentos de registro
-└── tests/                    234 pruebas automáticas (4 de tiempo de cómputo, opcionales)
+└── tests/                    235 pruebas automáticas (4 de tiempo de cómputo, opcionales)
 ```
 
 <img src="assets/divider.svg" width="100%"/>
@@ -429,10 +427,10 @@ Practice*, Springer; repositorio [CopterSim](https://github.com/XunhuaDai/Copter
 ### Citar
 
 ```bibtex
-@misc{quadsim_primbio_2026,
+@misc{quadsim_2026,
   author       = {Jácome, Jesús Daniel and Burgos Flórez, Francisco Javier},
-  title        = {QuadSIM-PRIMBIO: simulador 6-DOF para sintonía de controladores de cuadricóptero},
-  version      = {3.1.0},
+  title        = {QuadSim: simulador 6-DOF para sintonía de controladores de cuadricóptero},
+  version      = {1.0.0},
   year         = {2026},
   howpublished = {Proyecto Académico Especial, Semillero PRIMBIO, Grupo IAM-NANO, Universidad Nacional de Colombia, Sede La Paz},
   url          = {https://github.com/JesusJacome18/PAE-Quadcopter-SIM}
@@ -441,5 +439,5 @@ Practice*, Springer; repositorio [CopterSim](https://github.com/XunhuaDai/Copter
 
 <div align="center">
 <br/>
-<sub>◈ QuadSIM-PRIMBIO · PRIMBIO // IAM-NANO · Universidad Nacional de Colombia · Sede La Paz · 2026 ◈</sub>
+<sub>◈ QuadSim · Semillero PRIMBIO // IAM-NANO · Universidad Nacional de Colombia · Sede La Paz · 2026 ◈</sub>
 </div>

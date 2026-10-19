@@ -1,6 +1,6 @@
 # Dataset de vuelo simulado del cuadricóptero PAE-X450
 
-Vuelos simulados con QuadSIM-PRIMBIO para entrenar modelos dinámicos basados en datos
+Vuelos simulados con QuadSim para entrenar modelos dinámicos basados en datos
 (redes neuronales, identificación de sistemas). Cada vuelo trae, a 100 Hz, el PWM de los
 cuatro motores, el estado real del vehículo, sus derivadas, la lectura de cada sensor y las
 perturbaciones que actuaron.
@@ -318,6 +318,6 @@ Con la misma semilla se obtiene exactamente el mismo dataset. El código está e
 ## Cómo citarlo
 
 Jácome, J. D., y Burgos Flórez, F. J. (2026). *Dataset de vuelo simulado del cuadricóptero
-PAE-X450* [conjunto de datos], generado con QuadSIM-PRIMBIO 3.1.0. Semillero PRIMBIO,
+PAE-X450* [conjunto de datos], generado con QuadSim 1.0.0. Semillero PRIMBIO,
 Universidad Nacional de Colombia, Sede La Paz.
 https://github.com/JesusJacome18/PAE-Quadcopter-SIM

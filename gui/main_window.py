@@ -841,7 +841,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------ CSV
     def export_csv_dialog(self):
         default = os.path.join(os.path.expanduser("~"),
-                               f"pae_sim_{time.strftime('%Y%m%d_%H%M%S')}.csv")
+                               f"quadsim_{time.strftime('%Y%m%d_%H%M%S')}.csv")
         path, _ = QFileDialog.getSaveFileName(self, "Exportar corrida a CSV", default,
                                               "CSV (*.csv)")
         if path:

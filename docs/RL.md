@@ -1,7 +1,7 @@
 # Aprendizaje por refuerzo para el lazo de posición: RL puro y MPC + RL residual
 
 Este documento describe los dos controladores de posición basados en aprendizaje del
-simulador QuadSIM-PRIMBIO:
+simulador QuadSim:
 
 | clave | clase | qué entrega |
 |---|---|---|
@@ -54,7 +54,7 @@ de 10⁷ pasos: en el 6-DOF serían ≈2–3 horas **por millón** de pasos. Por
 4. **Sim2Real (aquí Sim2Sim)**: la política se ejecuta **sin reentrenar** en el
    simulador 6-DOF completo (planta no lineal a 1 kHz, IMU con ruido y vibración,
    AHRS Madgwick, filtro de navegación, cascada de actitud, mezclador, ESC).
-5. **Validación** (`quadsim/rl/validation.py`): banco de comparación con el mismo
+5. **Validación** (`experiments/rl_validation.py`): banco de comparación con el mismo
    protocolo de `experiments/benchmark_controllers.py`.
 
 > **Nota sobre torch.** El plan inicial era entrenar con PyTorch en CPU. En la máquina
@@ -335,7 +335,7 @@ semillas 1, 2, 3). Comprobación de que el protocolo es el mismo: las cifras de 
 MPC reproducen exactamente las del banco de comparación de controladores de ese momento (figura en 8: 2.90 y
 2.75 cm; figura en 8 rápida: 7.89 y 5.26 cm). El script del banco también corre
 `rl` y `mpc_rl` (se registran solos en `CONTROLLERS`); se usó un bucle propio
-(`quadsim/rl/validation.py`) solo para poder pasar la variante del residuo.
+(`experiments/rl_validation.py`) solo para poder pasar la variante del residuo.
 
 Trayectorias (no generadas como tales en el entrenamiento; ver 3.4): figura en 8 de Gerono 2 m × 1 m
 (periodo 10 s, 2 vueltas), círculo R = 1.5 m (10 s, 2 vueltas), figura en 8 rápida
@@ -347,7 +347,7 @@ descentrada, enganchada en t = 8 s). Resultados completos:
 ### 6.1 RMSE 3D [cm] (media ± desviación, 3 semillas)
 
 Cifras con el núcleo anterior (Madgwick). El ± de esta tabla es la desviación
-**poblacional** (ddof = 0), que era la que calculaba entonces `quadsim/rl/validation.py`;
+**poblacional** (ddof = 0), que era la que calculaba entonces `experiments/rl_validation.py`;
 el banco final usa la muestral (ddof = 1), y con tres semillas la muestral es √1.5 ≈ 1.22
 veces mayor, así que los ± de ambos documentos no se comparan directamente. El código de
 validación ya usa la muestral. La negrita marca la media
@@ -519,7 +519,7 @@ desplegar sin cambios en uno más rico. Para el dron real, el mismo flujo:
   el híbrido con la corregida (82.5 ms, 32 ms). Ambas dentro del rango aleatorizado y
   ambas con el núcleo anterior; re-identificar con el núcleo actual da otros valores
   (sección 2.2), así que la receta del inicio no reproduce exactamente `models/`.
-* El resumen de `quadsim/rl/validation.py` rotulaba el estimador como Madgwick aunque
+* El resumen de `experiments/rl_validation.py` rotulaba el estimador como Madgwick aunque
   corriera con el valor por defecto de `SimConfig` (hoy lee el nombre del estimador que
   realmente voló); las tablas de la sección 6 sí se produjeron con Madgwick, que era el
   defecto en ese momento.

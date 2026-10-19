@@ -102,7 +102,7 @@ def test_benchmark_fails_on_missing_controller(monkeypatch):
 
 # ------------------------------------------------------- C-09, C-11, C-12
 def test_policy_surrogate_from_metadata():
-    from quadsim.rl.validation import _policy_surrogate
+    from experiments.rl_validation import _policy_surrogate
     pol = MLPPolicy.load("rl_pure.npz")
     sp = _policy_surrogate(pol)
     assert sp.tau_xy == pytest.approx(pol.meta["surrogate"]["tau_xy"])
@@ -110,7 +110,7 @@ def test_policy_surrogate_from_metadata():
 
 
 def test_validation_uses_sample_std_and_real_estimator():
-    from quadsim.rl import validation
+    from experiments import rl_validation as validation
     src = inspect.getsource(validation.run_validation)
     assert "std(ddof=1)" in src and "estimador Madgwick" not in src
     m, _ = validation.run_full("pid", "circle")

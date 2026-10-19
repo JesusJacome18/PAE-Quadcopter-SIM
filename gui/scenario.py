@@ -12,7 +12,7 @@ escenario siempre se reproduce igual aunque la sesión anterior tuviera
 otra cosa):
 
     {
-      "formato": "pae-quadcopter-sim/escenario", "version": 1,
+      "formato": "quadsim/escenario", "version": 1,
       "titulo": ..., "nivel": "Básico" | "Intermedio" | "Avanzado",
       "descripcion": ..., "aprenderas": [...], "observa": ...,
       "resultado_esperado": ..., "pasos": [...], "autor": ..., "pagina": "actitud",
@@ -63,7 +63,9 @@ from . import registry
 from .about import APP_NAME, APP_VERSION
 from .controller import default_config
 
-FORMAT = "pae-quadcopter-sim/escenario"
+FORMAT = "quadsim/escenario"
+#: Formato anterior, que se sigue aceptando al abrir.
+FORMAT_ANTERIOR = "pae-quadcopter-sim/escenario"
 SCHEMA_VERSION = 1
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -221,7 +223,7 @@ def read_file(path: str) -> dict:
                             ".json?).") from None
     except (OSError, ValueError) as e:
         raise ScenarioError(f"No se pudo leer el archivo: {e}") from None
-    if not isinstance(data, dict) or data.get("formato") != FORMAT:
+    if not isinstance(data, dict) or data.get("formato") not in (FORMAT, FORMAT_ANTERIOR):
         raise ScenarioError(f"El archivo no es un escenario de {APP_NAME} (falta "
                             f"\"formato\": \"{FORMAT}\").")
     ver = data.get("version", 1)

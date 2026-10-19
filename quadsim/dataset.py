@@ -592,11 +592,10 @@ _RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def escribir_extras(carpeta: str):
-    """Copia al dataset el LEEME (docs/DATASET.md) y el cargador de ejemplo
-    (assets/dataset/cargar_dataset.py). En el ejecutable ambos viajan como
-    datos del paquete."""
+    """Copia al dataset el LEEME y el cargador de ejemplo (assets/dataset/). En
+    el ejecutable ambos viajan como datos del paquete."""
     import shutil
-    for src, dst in ((os.path.join(_RAIZ, "docs", "DATASET.md"), "LEEME.md"),
+    for src, dst in ((os.path.join(_RAIZ, "assets", "dataset", "LEEME.md"), "LEEME.md"),
                      (os.path.join(_RAIZ, "assets", "dataset", "cargar_dataset.py"),
                       "cargar_dataset.py")):
         if os.path.isfile(src):
@@ -658,7 +657,7 @@ def generar_dataset(carpeta: str, reparto: Dict[str, int] = None, tasa_hz: float
     p = get_vehicle(VEHICULO)
     meta = {
         "nombre": "Dataset de vuelo simulado del cuadricóptero PAE-X450",
-        "generador": "QuadSIM-PRIMBIO, módulo quadsim.dataset",
+        "generador": "QuadSim 1.0.0, módulo quadsim.dataset",
         "semilla_global": semilla,
         "tasa_hz": tasa_hz,
         "marcos": {"mundo": "NED (x norte, y este, z abajo)",

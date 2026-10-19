@@ -24,7 +24,7 @@ import numpy as np
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ["PAE_SIM_SETTINGS"] = os.path.join(tempfile.mkdtemp(prefix="pae_ex_"), "s.ini")
+os.environ["QUADSIM_SETTINGS"] = os.path.join(tempfile.mkdtemp(prefix="pae_ex_"), "s.ini")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 

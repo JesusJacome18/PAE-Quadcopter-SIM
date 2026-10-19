@@ -1,6 +1,6 @@
-# Guía de la interfaz gráfica — QuadSIM-PRIMBIO
+# Guía de la interfaz gráfica — QuadSim
 
-Esta guía describe la GUI de QuadSIM-PRIMBIO 3.0, el simulador del
+Esta guía describe la GUI de QuadSim 3.0, el simulador del
 repositorio PAE Quadcopter SIM: cómo arrancarla, qué hace cada área de
 trabajo y qué conviene mirar en cada gráfica. Está pensada para dos lectores. El
 estudiante de Mecatrónica que va a sintonizar su primer PID en cascada, y quien
@@ -8,8 +8,7 @@ presenta el proyecto ante evaluadores y necesita mostrar, con datos del propio
 simulador, de dónde sale cada número.
 
 Todas las capturas de este documento salen de corridas reales del simulador
-(física 1 kHz RK4, control 500 Hz), generadas sin pantalla con
-`docs/screenshots/make_screenshots.py` y `docs/screenshots/make_doc_figures.py`.
+(física 1 kHz RK4, control 500 Hz), tomadas sin pantalla.
 Ninguna curva está dibujada a mano.
 
 Quien abre el programa por primera vez no necesita leer esto antes: la
@@ -421,7 +420,7 @@ Las claves están en español sin tildes y todas son opcionales salvo
 
 ```json
 {
-  "formato": "pae-quadcopter-sim/escenario",
+  "formato": "quadsim/escenario",
   "version": 1,
   "titulo": "Viento y ráfaga con control de posición",
   "nivel": "Intermedio",
@@ -498,7 +497,7 @@ Los atajos viven en las acciones de los menús y en ningún otro lugar: Qt
 ignora un atajo registrado dos veces, y una prueba comprueba que no haya
 repetidos.
 
-**Acerca de** muestra el nombre (QuadSIM-PRIMBIO), la versión 3.0, los
+**Acerca de** muestra el nombre (QuadSim), la versión 3.0, los
 autores (Jesús Daniel Jácome, y Francisco Javier Burgos Flórez como
 director), el Proyecto Académico Especial, el Semillero PRIMBIO y el grupo IAM-NANO, la Universidad
 Nacional de Colombia, Sede La Paz, el año y las bibliotecas de terceros con
@@ -587,14 +586,12 @@ corren en `QThread` sobre copias de la configuración (`gui/workers.py`).
 | `tests/test_gui_examples.py` | carga y corre cada ejemplo; vuelve a medir las cifras de 01, 02 y 08 |
 | `tests/test_gui_scenarios.py` | guardar y abrir, archivos inválidos, menús, diálogos y todos los botones |
 | `docs/screenshots/make_screenshots.py` | regenera las capturas de las páginas |
-| `docs/screenshots/make_doc_figures.py` | figuras de documentación: páginas con ejemplos cargados, tour y diálogos |
 
 Pruebas y capturas:
 
 ```bash
 QT_QPA_PLATFORM=offscreen PYTHONPATH=. pytest -q tests/test_gui_*.py
 QT_QPA_PLATFORM=offscreen PYTHONPATH=. python docs/screenshots/make_screenshots.py
-QT_QPA_PLATFORM=offscreen PYTHONPATH=. python docs/screenshots/make_doc_figures.py
 ```
 
 La prueba `test_every_button_works` pulsa cada botón visible y habilitado de

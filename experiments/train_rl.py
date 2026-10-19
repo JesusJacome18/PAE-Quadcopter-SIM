@@ -306,7 +306,8 @@ def cmd_replot(args):
 
 
 def cmd_validate(args):
-    from quadsim.rl.validation import run_validation
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from rl_validation import run_validation
     run_validation(OUT, quick=args.quick)
 
 

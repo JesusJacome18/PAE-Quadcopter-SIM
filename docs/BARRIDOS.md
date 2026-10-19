@@ -537,7 +537,8 @@ Para más réplicas después, `--seeds 1 2 3 4 5 6 7 8`: solo corre las nuevas.
 ### 7.3 API para la GUI
 
 ```python
-from quadsim.sweeps import PRESETS, run_sweep, apply_params, plot_result
+from quadsim.sweeps import PRESETS, run_sweep, apply_params
+from experiments.sweep_plots import plot_result   # gráficas con matplotlib
 import threading
 
 spec = PRESETS["gyro_lpf"](seeds=[1, 2])        # SweepSpec; etiquetas: PRESETS[k].label

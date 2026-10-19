@@ -1,6 +1,6 @@
 # Ruta de presentación del simulador
 
-Guion paso a paso para mostrar **todo lo que hace QuadSIM-PRIMBIO**, en orden, explicado
+Guion paso a paso para mostrar **todo lo que hace QuadSim**, en orden, explicado
 para que cualquier persona lo entienda, tenga o no formación en control.
 
 Cada estación trae cuatro partes:

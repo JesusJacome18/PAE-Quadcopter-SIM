@@ -3,7 +3,7 @@ quadsim.sensors
 ===============
 Modelo de los sensores del dron: lo que el controlador VE, no lo que pasa.
 
-Sensores modelados (los del proyecto PAE, ver PROTOCOLO_SERIAL_GCS.md):
+Sensores modelados (los del dron de referencia):
   * IMU ISM330DHCX (giroscopio + acelerometro), muestreada a la tasa del lazo
     de control.
   * Magnetometro MMC5983MA.

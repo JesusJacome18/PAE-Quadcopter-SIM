@@ -71,7 +71,7 @@ def ejecutar(win) -> Tuple[List[str], List[str]]:
         import os
         from quadsim import dataset as ds
         from quadsim import dataset_verificacion  # noqa: F401
-        faltan = [f for f in (os.path.join(ds._RAIZ, "docs", "DATASET.md"),
+        faltan = [f for f in (os.path.join(ds._RAIZ, "assets", "dataset", "LEEME.md"),
                               os.path.join(ds._RAIZ, "assets", "dataset", "cargar_dataset.py"))
                   if not os.path.isfile(f)]
         if faltan:

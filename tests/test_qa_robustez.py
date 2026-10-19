@@ -33,7 +33,7 @@ import tempfile
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ["PAE_SIM_SETTINGS"] = os.path.join(tempfile.mkdtemp(prefix="pae_qa_"), "s.ini")
+os.environ["QUADSIM_SETTINGS"] = os.path.join(tempfile.mkdtemp(prefix="pae_qa_"), "s.ini")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
@@ -41,7 +41,7 @@ from PySide6.QtCore import QPoint, QPointF, Qt  # noqa: E402
 from PySide6.QtGui import QWheelEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-FMT = '"formato": "pae-quadcopter-sim/escenario"'
+FMT = '"formato": "quadsim/escenario"'
 
 
 @pytest.fixture(scope="module")

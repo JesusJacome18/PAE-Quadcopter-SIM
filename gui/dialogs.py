@@ -74,7 +74,7 @@ class WelcomeDialog(QDialog):
         tv = QVBoxLayout()
         tv.setSpacing(4)
         tv.addWidget(_title(f"Bienvenido a {about.APP_NAME}"))
-        tv.addWidget(label(f"Versión {about.APP_VERSION} · {about.AFFILIATION[-1]}", "Muted"))
+        tv.addWidget(label(f"Versión {about.APP_VERSION}", "Muted"))
         head.addLayout(tv, 1)
         lay.addLayout(head)
         lay.addWidget(label(
@@ -484,29 +484,18 @@ class AboutDialog(QDialog):
         g.setVerticalSpacing(5)
         rows = [("Autores", "<br>".join(f"{n}" + ("" if r == "autor" else f" ({r})")
                                          for n, r in about.AUTHORS)),
-                ("Proyecto", about.AFFILIATION[0]),
-                ("Grupo", about.AFFILIATION[1]),
-                ("Institución", about.AFFILIATION[2]),
-                ("Año", str(about.APP_YEAR)),
-                ("Repositorio", f"<a href='{about.REPOSITORY}'>{about.REPOSITORY}</a>")]
+                ("Año", str(about.APP_YEAR))]
         for r, (k, val) in enumerate(rows):
             g.addWidget(label(k, "FieldLabel"), r, 0, Qt.AlignmentFlag.AlignTop)
-            lb = label(val, "", wrap=True)
-            if val.startswith("<a"):
-                lb.setTextFormat(Qt.TextFormat.RichText)
-                lb.setOpenExternalLinks(True)
-                lb.setStyleSheet(f"a {{ color: {theme.T['focus']}; }}")
-                lb.setText(f"<a style='color:{theme.T['focus']}' href='{about.REPOSITORY}'>"
-                           f"{about.REPOSITORY}</a>")
-            g.addWidget(lb, r, 1)
+            g.addWidget(label(val, "", wrap=True), r, 1)
         g.setColumnStretch(1, 1)
         v.addLayout(g)
         v.addSpacing(6)
         v.addWidget(label("Construido con " + ", ".join(f"{n} ({lic})"
                                                        for n, lic in about.THIRD_PARTY) + ".",
                           "Faint", wrap=True))
-        v.addWidget(label(f"© {about.APP_YEAR} {about.authors_text(False).replace(';', ',')}. "
-                          f"Repositorio: {about.REPO_NAME}.", "Faint", wrap=True))
+        v.addWidget(label(f"© {about.APP_YEAR} {about.authors_text(False).replace(';', ',')}.",
+                          "Faint", wrap=True))
         v.addStretch(1)
         bb = QHBoxLayout()
         bb.addStretch(1)

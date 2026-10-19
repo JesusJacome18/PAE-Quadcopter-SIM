@@ -1,6 +1,6 @@
 """
-quadsim.rl.validation
-=====================
+experiments/rl_validation.py
+============================
 Paso de VALIDACION del flujo offline -> Sim2Real (Sim2Sim) -> validacion.
 
 1. Banco 6-DOF con el MISMO protocolo de experiments/benchmark_controllers.py
@@ -30,7 +30,9 @@ from pathlib import Path
 
 import numpy as np
 
-from .common import REPO_ROOT
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from quadsim.rl.common import REPO_ROOT  # noqa: E402
 
 TRAJS = ["lemniscate", "circle", "lemniscate_fast"]
 SCENS = ["nominal", "wind", "payload"]
@@ -49,10 +51,10 @@ def _traj_specs():
 
 
 def run_full(ctrl_key: str, traj_key: str, scenario="nominal", seed=1, **params):
-    from ..control.position import make_controller
-    from ..metrics import tracking_metrics
-    from ..scenarios import make_tracking_sim
-    from ..trajectories import make_trajectory
+    from quadsim.control.position import make_controller
+    from quadsim.metrics import tracking_metrics
+    from quadsim.scenarios import make_tracking_sim
+    from quadsim.trajectories import make_trajectory
     tname, tkw = _traj_specs()[traj_key]
     traj = make_trajectory(tname, **tkw)
     ctrl = make_controller(ctrl_key, "pae_x450", **params)
@@ -72,7 +74,7 @@ def run_full(ctrl_key: str, traj_key: str, scenario="nominal", seed=1, **params)
 def _policy_surrogate(policy):
     """SurrogateParams con los que se ENTRENO la politica (meta['surrogate']);
     si el archivo no los trae, los vigentes (models/surrogate_id.json)."""
-    from .surrogate import SurrogateParams, load_params
+    from quadsim.rl.surrogate import SurrogateParams, load_params
     sp = (policy.meta or {}).get("surrogate")
     if not sp:
         return load_params()
@@ -88,9 +90,9 @@ def surrogate_rmse(ctrl_key: str, traj, **params) -> float:
     anterior (tau 90 ms / retardo 28 ms) y no con la vigente de
     models/surrogate_id.json. El MPC solo se evalua con la vigente.
     """
-    from .base_mpc import make_replica
-    from .env import QuadTrackEnv
-    from .policy import MLPPolicy
+    from quadsim.rl.base_mpc import make_replica
+    from quadsim.rl.env import QuadTrackEnv
+    from quadsim.rl.policy import MLPPolicy
     if ctrl_key == "rl":
         pol = MLPPolicy.load("rl_pure.npz")
         env = QuadTrackEnv(1, mode="pure", randomize=False, fixed_traj=traj,
@@ -99,7 +101,7 @@ def surrogate_rmse(ctrl_key: str, traj, **params) -> float:
     else:
         pol = None
         if ctrl_key != "mpc":
-            from ..control.position.mpc_rl import MODEL_FILES
+            from quadsim.control.position.mpc_rl import MODEL_FILES
             pol = MLPPolicy.load(MODEL_FILES[int(params.get("model_idx", 0))])
         env = QuadTrackEnv(1, mode="residual", base=make_replica(), randomize=False,
                            fixed_traj=traj,
@@ -193,7 +195,7 @@ def run_validation(out: Path, quick: bool = False):
     _plots(logs, vdir)
 
     # ---- 2. brecha sustituto -> 6-DOF -------------------------------------
-    from ..trajectories import make_trajectory
+    from quadsim.trajectories import make_trajectory
     gap = {}
     for tk in TRAJS:
         tname, tkw = _traj_specs()[tk]

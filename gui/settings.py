@@ -5,7 +5,7 @@ Preferencias persistentes de la interfaz (QSettings): por ahora, si ya se
 mostró la bienvenida y la última carpeta usada para escenarios.
 
 En Windows quedan en el registro, en Linux en ~/.config. La variable de
-entorno PAE_SIM_SETTINGS (ruta de un archivo .ini) las redirige; las
+entorno QUADSIM_SETTINGS (ruta de un archivo .ini) las redirige; las
 pruebas la usan para no tocar las preferencias reales del usuario.
 """
 
@@ -15,15 +15,15 @@ import os
 
 from PySide6.QtCore import QSettings
 
-ORG = "UNAL Sede La Paz"
-APP = "PAE Quadcopter SIM"
+ORG = "QuadSim"
+APP = "QuadSim"
 
 KEY_WELCOME_OFF = "bienvenida/no_mostrar"
 KEY_LAST_DIR = "escenarios/ultima_carpeta"
 
 
 def app_settings() -> QSettings:
-    path = os.environ.get("PAE_SIM_SETTINGS")
+    path = os.environ.get("QUADSIM_SETTINGS") or os.environ.get("PAE_SIM_SETTINGS")
     if path:
         return QSettings(path, QSettings.Format.IniFormat)
     return QSettings(ORG, APP)

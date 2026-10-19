@@ -38,10 +38,12 @@ import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from quadsim.objectives import SCENARIOS  # noqa: E402
 from quadsim.sweeps import (PRESETS, SweepParam, SweepSpec, default_workers,  # noqa: E402
-                            plot_result, run_sweep)
+                            run_sweep)
+from sweep_plots import plot_result  # noqa: E402
 
 
 def parse_param(text: str) -> SweepParam:

@@ -27,7 +27,7 @@ import traceback
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ["PAE_SIM_SETTINGS"] = os.path.join(tempfile.mkdtemp(prefix="pae_sc_"), "s.ini")
+os.environ["QUADSIM_SETTINGS"] = os.path.join(tempfile.mkdtemp(prefix="pae_sc_"), "s.ini")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
@@ -174,16 +174,16 @@ def test_round_trip_trajectory_mode(app, win, tmp_path):
 @pytest.mark.parametrize("content, msg", [
     ("{ no es json", "JSON"),
     (json.dumps({"formato": "otro"}), "no es un escenario"),
-    (json.dumps({"formato": "pae-quadcopter-sim/escenario",
+    (json.dumps({"formato": "quadsim/escenario",
                  "config": {"vehiculo": "no_existe"}}), "Vehículo desconocido"),
-    (json.dumps({"formato": "pae-quadcopter-sim/escenario",
+    (json.dumps({"formato": "quadsim/escenario",
                  "config": {"estimador": {"tipo": "kalmanito"}}}), "Estimador"),
-    (json.dumps({"formato": "pae-quadcopter-sim/escenario",
+    (json.dumps({"formato": "quadsim/escenario",
                  "config": {"modo": "trayectoria"}}), "trayectoria"),
-    (json.dumps({"formato": "pae-quadcopter-sim/escenario",
+    (json.dumps({"formato": "quadsim/escenario",
                  "config": {"filtros": {"roll": [{"tipo": "notch", "fc": 400}]}}}),
      "fuera de rango"),
-    (json.dumps({"formato": "pae-quadcopter-sim/escenario",
+    (json.dumps({"formato": "quadsim/escenario",
                  "acciones": [{"t": 1, "accion": "volar_solo"}]}), "acción desconocida"),
 ])
 def test_invalid_scenarios_leave_session_untouched(app, win, tmp_path, content, msg):
@@ -203,7 +203,7 @@ def test_invalid_scenarios_leave_session_untouched(app, win, tmp_path, content, 
 
 def test_scenario_warnings_for_unknown_keys(app, win, tmp_path):
     path = tmp_path / "extra.json"
-    path.write_text(json.dumps({"formato": "pae-quadcopter-sim/escenario",
+    path.write_text(json.dumps({"formato": "quadsim/escenario",
                                 "config": {"vehiculo": "pae_x450", "color": "rojo",
                                            "perturbaciones": {"viento": {"medio": 1,
                                                                          "tornado": 3}}}}),
@@ -252,9 +252,12 @@ def test_dialogs_build(app, win):
     d = AboutDialog(win)
     txt = " ".join(lb.text() for lb in d.findChildren(type(win.top.clock)))
     for s in (about.APP_NAME, about.APP_VERSION, "Jesús Daniel Jácome",
-              "Francisco Javier Burgos Flórez", "director", "PRIMBIO", "IAM-NANO",
-              "Sede La Paz", str(about.APP_YEAR)):
+              "Francisco Javier Burgos Flórez", "director", str(about.APP_YEAR)):
         assert s in txt, s
+    assert about.APP_NAME == "QuadSim" and about.APP_VERSION == "1.0.0"
+    # el programa no lleva filiación institucional
+    for s in ("PRIMBIO", "IAM-NANO", "Universidad", "Sede La Paz"):
+        assert s not in txt, s
     g = ExamplesDialog(win)
     assert len(g.cards) == len(list_examples()) >= 8
     g.filter.set_value("Avanzado")
@@ -364,3 +367,13 @@ def test_every_button_works(app, win, quiet_dialogs):
         sys.excepthook = old_hook
     assert len(clicked) >= 60, len(clicked)
     assert not excs
+
+
+def test_formato_anterior_se_acepta(tmp_path):
+    """Los escenarios guardados con el nombre de formato anterior siguen abriendo."""
+    from gui import scenario as scn
+    src = json.load(open(scn.list_examples()[0][0], encoding="utf-8"))
+    src["formato"] = scn.FORMAT_ANTERIOR
+    p = tmp_path / "viejo.json"
+    p.write_text(json.dumps(src), encoding="utf-8")
+    assert scn.read_file(str(p))["formato"] == scn.FORMAT_ANTERIOR

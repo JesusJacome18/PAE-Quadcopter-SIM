@@ -26,7 +26,7 @@ from .workers import start_in_thread
 
 
 def carpeta_por_defecto() -> str:
-    return os.path.join(os.path.expanduser("~"), "Documents", "QuadSIM-PRIMBIO",
+    return os.path.join(os.path.expanduser("~"), "Documents", "QuadSim",
                         "dataset_pae_x450")
 
 

@@ -22,7 +22,7 @@ jobs:
       - name: Dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          pip install -r requirements.txt pytest pyinstaller
 
       - name: Pruebas del nucleo
         env:
@@ -31,14 +31,14 @@ jobs:
         run: python -m pytest -q tests/test_audit_core.py tests/test_trajectories.py
 
       - name: Compilar (PyInstaller, una carpeta)
-        run: pyinstaller --noconfirm packaging/QuadSIM-PRIMBIO.spec
+        run: pyinstaller --noconfirm packaging/QuadSim.spec
 
       - name: Autoprueba del ejecutable (pantalla real de Windows)
         shell: pwsh
         run: |
-          $env:PAE_SIM_SETTINGS = "$env:RUNNER_TEMP\qs.ini"
+          $env:QUADSIM_SETTINGS = "$env:RUNNER_TEMP\qs.ini"
           $inf = "$env:RUNNER_TEMP\autoprueba.txt"
-          $p = Start-Process -FilePath "dist\QuadSIM-PRIMBIO\QuadSIM-PRIMBIO.exe" -ArgumentList "--no-welcome","--autoprueba","`"$inf`"" -PassThru
+          $p = Start-Process -FilePath "dist\QuadSim\QuadSim.exe" -ArgumentList "--no-welcome","--autoprueba","`"$inf`"" -PassThru
           if (-not $p.WaitForExit(180000)) { Stop-Process -Id $p.Id -Force; throw "La autoprueba no termino en 3 minutos" }
           $txt = if (Test-Path $inf) { Get-Content $inf -Raw } else { "sin informe" }
           Write-Output $txt
@@ -49,23 +49,23 @@ jobs:
       - name: Prueba de humo (ejemplo 05 en vuelo, 20 s)
         shell: pwsh
         run: |
-          $env:PAE_SIM_SETTINGS = "$env:RUNNER_TEMP\qs2.ini"
-          $p = Start-Process -FilePath "dist\QuadSIM-PRIMBIO\QuadSIM-PRIMBIO.exe" -ArgumentList "--no-welcome","--example","05","--play" -PassThru
+          $env:QUADSIM_SETTINGS = "$env:RUNNER_TEMP\qs2.ini"
+          $p = Start-Process -FilePath "dist\QuadSim\QuadSim.exe" -ArgumentList "--no-welcome","--example","05","--play" -PassThru
           Start-Sleep -Seconds 20
           if ($p.HasExited) { throw "El ejecutable se cerro antes de tiempo (codigo $($p.ExitCode))" }
           Stop-Process -Id $p.Id -Force
 
       - name: Empaquetar
         shell: pwsh
-        run: Compress-Archive -Path dist\QuadSIM-PRIMBIO -DestinationPath QuadSIM-PRIMBIO-win64.zip
+        run: Compress-Archive -Path dist\QuadSim -DestinationPath QuadSim-1.0.0-win64.zip
 
       - uses: actions/upload-artifact@v4
         with:
-          name: QuadSIM-PRIMBIO-win64
-          path: QuadSIM-PRIMBIO-win64.zip
+          name: QuadSim-1.0.0-win64
+          path: QuadSim-1.0.0-win64.zip
 
       - name: Publicar en Releases (solo etiquetas v*)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: QuadSIM-PRIMBIO-win64.zip
+          files: QuadSim-1.0.0-win64.zip

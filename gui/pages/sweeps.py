@@ -89,7 +89,7 @@ class SweepsPage(Page):
             # En el ejecutable la carpeta del programa puede no ser escribible:
             # los resultados van a Documentos del usuario.
             self.out_root = os.path.join(os.path.expanduser("~"), "Documents",
-                                         "QuadSIM-PRIMBIO", "barridos")
+                                         "QuadSim", "barridos")
 
         root = QHBoxLayout(self)
         root.setContentsMargins(14, 14, 14, 14)

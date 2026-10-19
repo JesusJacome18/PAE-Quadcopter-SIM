@@ -1,5 +1,5 @@
 """
-QuadSIM-PRIMBIO (repositorio PAE Quadcopter SIM) — punto de entrada de la GUI.
+QuadSim — punto de entrada de la interfaz gráfica.
 
     python main.py                 # tema oscuro
     python main.py --light         # tema claro (proyector)
@@ -12,7 +12,7 @@ QuadSIM-PRIMBIO (repositorio PAE Quadcopter SIM) — punto de entrada de la GUI.
 Variables de entorno útiles:
     PAE_NO_GL=1                    fuerza la vista 3D de respaldo (sin OpenGL)
     QT_QPA_PLATFORM=offscreen      sin pantalla (pruebas)
-    PAE_SIM_SETTINGS=archivo.ini   preferencias en un archivo propio
+    QUADSIM_SETTINGS=archivo.ini   preferencias en un archivo propio
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ def main(argv=None) -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
-    app.setOrganizationName("UNAL Sede La Paz")
+    app.setOrganizationName("QuadSim")
     app.setStyle("Fusion")
     # Punto decimal en todos los campos, sea cual sea la configuración
     # regional de Windows: con es-CO los campos mostraban «7,812» mientras

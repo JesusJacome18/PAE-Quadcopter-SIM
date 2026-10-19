@@ -44,7 +44,6 @@ del modelo):
   * Empuje maximo por rotor C_T*omega_max^2 = 11.2 N (1.14 kgf):
     relacion empuje/peso 3.3, normal para un F450 con 4S.
 
-Autor: PAE Quadcopter SIM
 """
 
 from __future__ import annotations

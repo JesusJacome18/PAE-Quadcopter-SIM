@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
-# Especificacion de PyInstaller para QuadSIM-PRIMBIO (compilacion en una carpeta).
-#   pyinstaller --noconfirm packaging/QuadSIM-PRIMBIO.spec
-# Resultado: dist/QuadSIM-PRIMBIO/QuadSIM-PRIMBIO(.exe) + _internal/
+# Especificacion de PyInstaller para QuadSim (compilacion en una carpeta).
+#   pyinstaller --noconfirm packaging/QuadSim.spec
+# Resultado: dist/QuadSim/QuadSim(.exe) + _internal/
 import os
 import sys
 from PyInstaller.utils.hooks import collect_submodules
@@ -33,8 +33,6 @@ datas = [
     (os.path.join(ROOT, "examples"), "examples"),
     (os.path.join(ROOT, "models"), "models"),
     (os.path.join(ROOT, "assets", "icono.png"), "assets"),
-    (os.path.join(ROOT, "docs", "Modelo_Matematico_Simulador_3ra_Edicion.pdf"), "docs"),
-    (os.path.join(ROOT, "docs", "DATASET.md"), "docs"),
     (os.path.join(ROOT, "assets", "dataset"), os.path.join("assets", "dataset")),
 ]
 hidden = (_modulos_del_proyecto("quadsim") + _modulos_del_proyecto("gui")
@@ -46,15 +44,16 @@ a = Analysis(
     datas=datas,
     hiddenimports=hidden,
     excludes=["torch", "tensorflow", "IPython", "jupyter", "notebook", "tkinter",
-              "PyQt5", "PyQt6", "PySide2", "pytest"],
+              "PyQt5", "PyQt6", "PySide2", "pytest", "matplotlib", "experiments", "tests"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, [],
     exclude_binaries=True,
-    name="QuadSIM-PRIMBIO",
+    name="QuadSim",
     console=False,
+    version=os.path.join(SPECPATH, "version_info.txt"),
     icon=os.path.join(ROOT, "assets", "icono.ico") if os.path.exists(os.path.join(ROOT, "assets", "icono.ico")) else None,
 )
-coll = COLLECT(exe, a.binaries, a.datas, name="QuadSIM-PRIMBIO")
+coll = COLLECT(exe, a.binaries, a.datas, name="QuadSim")

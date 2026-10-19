@@ -14,7 +14,7 @@ import tempfile
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ["PAE_SIM_SETTINGS"] = os.path.join(tempfile.mkdtemp(prefix="pae_auto_"), "s.ini")
+os.environ["QUADSIM_SETTINGS"] = os.path.join(tempfile.mkdtemp(prefix="pae_auto_"), "s.ini")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PySide6.QtWidgets import QAbstractSpinBox, QApplication  # noqa: E402
@@ -54,7 +54,7 @@ def test_campos_numericos_sin_nobuttons(win):
 def test_especificacion_incluye_modulos_cargados_con_importlib():
     """El ejecutable debe traer los módulos que la GUI importa con importlib."""
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    spec = os.path.join(root, "packaging", "QuadSIM-PRIMBIO.spec")
+    spec = os.path.join(root, "packaging", "QuadSim.spec")
     src = open(spec, encoding="utf-8").read()
     ns = {"__name__": "spec"}
     exec(src[src.index("def _modulos_del_proyecto"):src.index("datas = [")],

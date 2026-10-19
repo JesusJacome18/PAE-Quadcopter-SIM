@@ -1,0 +1,8 @@
+# Dependencias adicionales del repositorio (no hacen falta para ejecutar QuadSim)
+-r requirements.txt
+# Identificación del modelo sustituto y entrenamiento RL (scipy.signal)
+scipy>=1.10
+# Gráficas de experimentos y barridos fuera de la interfaz
+matplotlib>=3.7
+# Pruebas automáticas
+pytest>=7
