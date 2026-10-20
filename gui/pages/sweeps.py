@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import math
 import os
-import sys
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -82,14 +81,11 @@ class SweepsPage(Page):
         self._worker: Optional[SweepWorker] = None
         self._thread = None
         self._was_running = False
-        #: carpeta raíz de resultados; None = la de quadsim.sweeps
-        #: (experiments/results/sweeps). Las pruebas la redirigen a un temporal.
-        self.out_root: Optional[str] = None
-        if getattr(sys, "frozen", False):
-            # En el ejecutable la carpeta del programa puede no ser escribible:
-            # los resultados van a Documentos del usuario.
-            self.out_root = os.path.join(os.path.expanduser("~"), "Documents",
-                                         "QuadSim", "barridos")
+        #: carpeta raíz de resultados: Documentos del usuario (la carpeta del
+        #: programa puede no ser escribible). Las pruebas la redirigen a un
+        #: temporal.
+        self.out_root: Optional[str] = os.path.join(os.path.expanduser("~"), "Documents",
+                                                    "QuadSim", "barridos")
 
         root = QHBoxLayout(self)
         root.setContentsMargins(14, 14, 14, 14)
