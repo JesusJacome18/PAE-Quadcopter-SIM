@@ -37,15 +37,18 @@ vehículo y se ve en la página Modelo.
 el `.param` tiene `MOT_PWM_MIN` = 1000 y `MOT_PWM_MAX` = 1500. Todo lo que el simulador llama
 «acelerador» en este vehículo (estacionario, mezclador, telemetría) usa esa escala.
 
-### La BeagleBone Blue envía PWM, no DShot
+### La BeagleBone Blue envía PWM normal
 
-El `.param` pide DShot300 (`MOT_PWM_TYPE` = 5), pero en el código de ArduPilot:
+El primer `.param` pedía DShot300 (`MOT_PWM_TYPE` = 5), pero en el código de ArduPilot:
 
 - `libraries/AP_HAL_Linux/RCOutput_AioPRU.cpp` no implementa `set_output_mode`; la función base
   está vacía y la petición se ignora;
 - `AP_BLHeli`, que marca las salidas como digitales, solo se compila en ChibiOS.
 
-Los motores reciben PWM de 1000–1500 µs a `RC_SPEED` (490 Hz). El ESC detecta el protocolo solo y
+La petición se ignoraba y los motores recibían PWM. Desde el 30 de octubre el tipo de salida
+está en **Normal** en Mission Planner, que es lo único que la placa genera; falta el `.param`
+actualizado para confirmar que `MOT_PWM_MIN` y `MOT_PWM_MAX` siguen en 1000 y 1500. Los motores
+reciben PWM de 1000–1500 µs a `RC_SPEED` (490 Hz). El ESC detecta el protocolo solo y
 traduce el pulso con **su propio rango**, que todavía no se conoce. Por eso hay dos variantes con
 la hélice 5046.
 
@@ -153,7 +156,7 @@ Tampoco se pueden seguir trayectorias.
 | Fricción viscosa | 2 × 10⁻⁴ N·m/(rad/s) | supuesto |
 | Fricción de Coulomb | 1 × 10⁻³ N·m (suavizada bajo 0.01 rad/s) | supuesto |
 | Tope de inclinación | 30° (cono alrededor de la vertical) | supuesto |
-| Guiñada | libre (opción para bloquearla) | supuesto |
+| Guiñada | libre, sin límite (opción para bloquearla en otros bancos) | confirmado |
 | Topes | resorte y amortiguador de 20 Hz, ζ = 0.7, que solo empujan hacia adentro | modelo |
 
 La fricción de Coulomb está suavizada para no volver rígida la integración: cerca del reposo actúa
@@ -192,7 +195,7 @@ print(sim.bench_tilt_deg)
 - **Registro `.bin` de una prueba en el banco.** Da el `RCOU` de estacionario (rango del ESC), las
   respuestas de actitud para ajustar el arrastre, el amortiguamiento y la fricción de la rótula,
   y la vibración real (`INS_LOG_BAT_MASK`).
-- **Rótula:** tope de inclinación, grados de libertad (si la guiñada gira) y, si se puede, una
+- **Rótula:** tope de inclinación (la guiñada ya se confirmó libre) y, si se puede, una
   prueba de caída libre sin motores para medir la fricción.
 - **ESC:** modelo y firmware (BLHeli_S, BLHeli_32 o AM32).
 - **Motor:** modelo real o una prueba de empuje de un motor.

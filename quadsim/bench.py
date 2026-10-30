@@ -84,12 +84,14 @@ class BenchConfig:
     pivot_below_cm_m: float = 0.0407
     # Altura del pivote sobre el suelo [m] (solo para barometro y posicion).
     pivot_height_m: float = 1.0
-    # --- rotula: SUPUESTOS hasta medirlos -----------------------------------
+    # --- rotula: SUPUESTOS hasta medirlos (salvo lock_yaw) ------------------
     viscous_Nms: float = 2.0e-4        # N m/(rad/s)
     coulomb_Nm: float = 1.0e-3         # N m
     coulomb_eps_rad_s: float = 0.01    # suavizado de la friccion de Coulomb
     tilt_limit_deg: float = 30.0       # cono de inclinacion permitido
-    lock_yaw: bool = False             # True: el rumbo no puede girar
+    # False = guinada libre, sin limite (confirmado en el banco del dron
+    # ArduCopter); True = rotula con el giro vertical trabado
+    lock_yaw: bool = False
     stop_hz: float = 20.0              # rigidez de los topes (frecuencia natural)
     stop_zeta: float = 0.7             # amortiguamiento de los topes
     # --- operacion ----------------------------------------------------------

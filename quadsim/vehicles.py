@@ -367,9 +367,10 @@ HUMMINGBIRD = VehicleParams(
 #
 # ACELERADOR. sigma es la salida de motor de ArduPilot: sigma = 0 -> 1000 us y
 # sigma = 1 -> 1500 us (MOT_PWM_MIN = 1000, MOT_PWM_MAX = 1500 en el .param).
-# La BeagleBone Blue envia PWM normal a RC_SPEED aunque el .param pida DShot300
-# (MOT_PWM_TYPE = 5): RCOutput_AioPRU no implementa set_output_mode y
-# AP_BLHeli, que marca las salidas como digitales, solo existe en ChibiOS.
+# La BeagleBone Blue solo genera PWM normal a RC_SPEED: RCOutput_AioPRU no
+# implementa set_output_mode y AP_BLHeli, que marca las salidas como digitales,
+# solo existe en ChibiOS. El primer .param pedia DShot300 (MOT_PWM_TYPE = 5),
+# que se ignoraba; desde el 30-oct-2026 el tipo de salida esta en Normal.
 # El ESC traduce ese PWM con su PROPIO rango (pwm_lo_esc .. pwm_hi_esc), que
 # depende de su firmware y aun no se conoce. Por eso hay dos variantes del
 # mismo dron: ESC de 1000-2000 us (principal) y BLHeli_S de fabrica
@@ -437,7 +438,7 @@ _ARDU_SOURCE = (
 
 _ARDU_CAVEATS = (
     "Motor representativo (el real no tiene referencia): empuje con +-20 %. La "
-    "BeagleBone Blue envia PWM, no DShot; el rango de PWM que usa el ESC no esta "
+    "BeagleBone Blue envia PWM normal (la unica salida que genera); el rango de PWM que usa el ESC no esta "
     "confirmado (ver esc_map_fit y la variante BLHeli_S). Zona muerta 0.10 "
     "supuesta. Arrastre del fuselaje y amortiguamiento rotacional escalados desde "
     "el PAE-X450 por tamano (supuestos, a corregir con un registro .bin). Centro "
