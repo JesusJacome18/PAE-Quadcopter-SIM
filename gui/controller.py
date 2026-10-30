@@ -84,6 +84,7 @@ class SimulationController(QObject):
     mode_changed = Signal(str)
     disturbances_changed = Signal()
     step_test_done = Signal(dict)
+    bench_changed = Signal()            # se activó/desactivó o cambió el banco de rótula
     event = Signal(str, str)            # nivel ("info", "warn", "error"), texto
 
     GUI_HZ = 50.0
@@ -209,6 +210,7 @@ class SimulationController(QObject):
         self._last_tel = tel
         self._check_step_test()
         self._check_crash(tel)
+        self._check_bench_stop(tel)
         if tel["mixer_k_rp"] < 0.999 and self.sim.t - self._last_k_rp_warn > 3.0:
             self._last_k_rp_warn = self.sim.t
             self.event.emit("warn", f"Mezclador saturado: k_rp = {tel['mixer_k_rp']:.2f} "
@@ -222,6 +224,19 @@ class SimulationController(QObject):
     # por un filtro de 1 Hz llegó a 3.2-3.8 m/s, o volcada.
     CRASH_SPEED = 2.0      # m/s hacia abajo en el último medio segundo
     CRASH_TILT = 45.0      # grados de roll o pitch al tocar el suelo
+
+    def _check_bench_stop(self, tel: dict):
+        """En el banco de rótula avisa UNA vez por corrida cuando el dron
+        llega al tope de inclinación (equivale a la caída del vuelo libre)."""
+        if not tel.get("bench") or self._crash_reported:
+            return
+        lim = self.sim.cfg.bench.tilt_limit_deg
+        if tel.get("tilt_deg", 0.0) < lim - 0.5:
+            return
+        self._crash_reported = True
+        self.event.emit("warn", f"El dron llegó al tope de la rótula ({lim:g}°) en "
+                                f"t = {self.sim.t:.2f} s. Reiniciar la corrida (Ctrl+R) lo "
+                                f"vuelve a poner en la actitud inicial.")
 
     def _check_crash(self, tel: dict):
         """Avisa UNA vez por corrida cuando el dron cae al suelo. La física
@@ -260,6 +275,9 @@ class SimulationController(QObject):
         self._airborne = False
         self._crash_reported = False
         self.store.clear()
+        if self.gyro.fs != self.sim.cfg.ctrl_hz:
+            # un escenario puede cambiar la tasa de control (400 Hz en ArduCopter)
+            self.gyro = GyroRing(self.sim.cfg.ctrl_hz, seconds=8.0)
         self.gyro.clear()
         self._record(force=True)
 
@@ -428,11 +446,59 @@ class SimulationController(QObject):
         self.mode_changed.emit("attitude")
         self.event.emit("info", "Modo actitud: el usuario manda ángulos y altura.")
 
+    # ---- banco de rótula ---------------------------------------------------
+    def set_bench(self, on: bool):
+        """Pone o quita el dron del banco de rótula. Reinicia la corrida
+        (conserva las ganancias): sobre el banco solo hay modo actitud."""
+        on = bool(on)
+        if on == self.sim.cfg.bench.enabled:
+            return
+        self.pause()
+        if on and self.sim.cfg.mode == "trajectory":
+            self.sim.cfg.mode = "attitude"
+            self.sim.cfg.start_alt = self.attitude_start_alt
+            self.sim.set_position_controller(None)
+            self.sim.set_trajectory(None)
+            self.mode_changed.emit("attitude")
+        self.sim.cfg.bench.enabled = on
+        self.reset(keep_gains=True)
+        self.bench_changed.emit()
+        if on:
+            b = self.sim.cfg.bench
+            self.event.emit("info", f"Banco de rótula: pivote {b.pivot_below_cm_m * 1000:.1f} mm "
+                                    f"bajo el centro de masa, empuje {b.thrust_ratio:.2f} × peso. "
+                                    f"Sin lazo de altura ni trayectorias.")
+        else:
+            self.event.emit("info", "Vuelo libre: el dron salió del banco de rótula.")
+
+    def set_bench_params(self, **kw):
+        """Cambia parámetros del banco. Los de la rótula (pivote, fricción,
+        tope, guiñada) actúan en vivo; la actitud inicial, en el próximo
+        reinicio."""
+        b = self.sim.cfg.bench
+        for k, v in kw.items():
+            if not hasattr(b, k):
+                raise AttributeError(f"parámetro de banco desconocido: {k}")
+            setattr(b, k, type(getattr(b, k))(v))
+        if self.sim.bench_on and hasattr(self.sim.dyn, "project"):
+            self.sim.dyn.set_params(self.sim.p)
+            # bloqueo de guiñada en vivo: traba el rumbo que tiene ahora
+            self.sim.dyn.yaw_lock_ref = self.sim.true_euler[2]
+            self.sim.dyn.project(self.sim.x)
+        self.bench_changed.emit()
+
+    def set_bench_thrust(self, ratio: float):
+        self.sim.set_bench_thrust(ratio)
+
     # ---- prueba de escalón ------------------------------------------------
     def start_step_test(self, axis: str, amplitude: float, window_s: float = 3.0,
                         return_after: bool = True, autoplay: bool = True):
         if self.sim.cfg.mode != "attitude":
             self.event.emit("warn", "La prueba de escalón es del modo actitud.")
+            return False
+        if axis == "alt" and self.sim.cfg.bench.enabled:
+            self.event.emit("warn", "En el banco de rótula la altura está fija: el escalón "
+                                    "solo se hace en roll, pitch o yaw.")
             return False
         if self._step_test is not None:
             self.event.emit("warn", "Ya hay un escalón midiéndose: espere a que termine su "
@@ -649,6 +715,10 @@ class SimulationController(QObject):
 
     def fly_trajectory(self, traj_key: str, traj_params: dict, ctrl_key: str,
                        ctrl_params: dict) -> bool:
+        if self.sim.cfg.bench.enabled:
+            self.event.emit("warn", "El dron está sobre el banco de rótula: no puede seguir "
+                                    "trayectorias. Desactive el banco en la página Actitud.")
+            return False
         prev = (self.traj_key, self.traj_params, self.ctrl_key, self.ctrl_params)
         self.traj_key, self.traj_params = traj_key, dict(traj_params)
         self.ctrl_key, self.ctrl_params = ctrl_key, dict(ctrl_params)

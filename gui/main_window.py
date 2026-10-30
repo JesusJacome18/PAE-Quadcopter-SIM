@@ -182,7 +182,8 @@ class TopBar(QFrame):
         vb.setContentsMargins(0, 0, 0, 0)
         vb.setSpacing(2)
         vb.addWidget(label("Vehículo", "TopLabel"))
-        self.cb_vehicle = combo([(self._short(v.name), k) for k, v in VEHICLES.items()],
+        self.cb_vehicle = combo([(v.short_name or self._short(v.name), k)
+                                 for k, v in VEHICLES.items()],
                                 "Modelo físico simulado (catálogo quadsim.vehicles). Cambiarlo "
                                 "reinicia la corrida y recalcula las ganancias SIMC.")
         for i, (k, v) in enumerate(VEHICLES.items()):

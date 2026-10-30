@@ -178,7 +178,7 @@ Trayectorias, Perturbaciones, Sensores, Barridos y Modelo.
 | Archivo | Abrir escenario… (diálogo de archivo), Guardar escenario como… (diálogo con título y nivel), Exportar CSV…, Salir |
 | Simulación | Iniciar / pausar, Avanzar 0.1 s, Reiniciar la corrida |
 | Ver | las seis páginas, Tema claro / oscuro, Registro de eventos |
-| Ejemplos | Galería de ejemplos…, los 11 ejemplos por nombre, Abrir carpeta de ejemplos (abre el Explorador en `examples`) |
+| Ejemplos | Galería de ejemplos…, los 12 ejemplos por nombre, Abrir carpeta de ejemplos (abre el Explorador en `examples`) |
 | Ayuda | Tour guiado, Tour de esta página, Galería de ejemplos, Atajos de teclado (tabla de 16 filas), Acerca de |
 
 - **Es un error si:** una opción no responde o abre algo distinto.
@@ -197,7 +197,7 @@ Trayectorias, Perturbaciones, Sensores, Barridos y Modelo.
 ### MEN-03 · Acerca de
 - **Para qué sirve:** revisar los datos de autoría que se registran.
 - **Pasos:** Ayuda → Acerca de.
-- **Resultado esperado:** nombre QuadSim, versión 1.0.0, autores (Jesús Daniel Jácome;
+- **Resultado esperado:** nombre QuadSim, versión 1.1.0, autores (Jesús Daniel Jácome;
   Francisco Javier Burgos Flórez como director), el año y las bibliotecas con su licencia.
 - **Es un error si:** algún dato está mal escrito o cortado.
 - [ ] Pasa  [ ] Falla
@@ -247,7 +247,7 @@ ejemplo no hace falta preparar nada.
 ### EJE-00 · Galería y tarjeta guía
 - **Pasos:** F2; use los filtros Básico, Intermedio, Avanzado y Todos. Cargue el ejemplo 02 y
   en su tarjeta use la flecha (plegar), «Repetir el ejemplo» y la equis.
-- **Resultado esperado:** Básico deja 1 tarjeta, Intermedio 7 y Avanzado 3. La flecha pliega
+- **Resultado esperado:** Básico deja 1 tarjeta, Intermedio 8 y Avanzado 3. La flecha pliega
   la tarjeta a su encabezado; «Repetir el ejemplo» vuelve a t = 0 con la misma
   configuración; la equis la cierra.
 - **Es un error si:** el botón Cargar de alguna tarjeta queda tapado por el texto.
@@ -266,12 +266,13 @@ ejemplo no hace falta preparar nada.
 | EJE-09 | Falla de motor | esperar 30 s; luego Reparar | M1 sube a ≈ 93 % y los demás quedan en ≈ 61 %; error máximo ≈ 0.142 m; k_rp sigue en 1.00 | [ ] |
 | EJE-10 | Interferencia magnética | mirar Error de rumbo en Perturbaciones; pausar y comparar PID y MPC | error de rumbo de hasta ≈ 14°; en la comparación el PID queda muy por encima del MPC (≈ 0.13 m frente a ≈ 0.03 m) | [ ] |
 | EJE-11 | Barrido del pasa-bajos | pulsar Ejecutar barrido | 51 simulaciones (unos 35–45 s con un proceso); mejor punto: pasa-bajos de 20 Hz con Q 1.2 y J = 0.729, marcado como «Borde» | [ ] |
+| EJE-12 | ArduCopter en el banco de rótula | esperar el escalón; quitar «Dron sobre el banco» y aplicar un escalón de roll de 10°; volver al banco y poner el empuje en 0 | en el banco: subida ≈ 0.12 s, sobrepaso ≈ 20 %; en vuelo libre: sobrepaso 0 %; con empuje 0 el dron cae al tope de 30° en ≈ 0.5 s y el registro avisa una vez | [ ] |
 
 - **Es un error, en cualquier ejemplo, si:** la página que se abre no es la del ejemplo, la
   tarjeta guía no aparece o queda la configuración del ejemplo anterior (por ejemplo, viento
   del 07 al cargar el 08).
 
-### EJE-12 · Cargar ejemplos seguidos
+### EJE-13 · Cargar ejemplos seguidos
 - **Pasos:** sin pausar, cargue 05, después 07, después 02, después 11.
 - **Resultado esperado:** cada carga reemplaza la anterior por completo: en el 02 no queda
   viento ni modo trayectoria; en el 11 la simulación queda en pausa en la página Barridos.
@@ -409,6 +410,31 @@ ejemplo no hace falta preparar nada.
 - **Resultado esperado:** sin clic, la rueda solo desplaza la columna; ninguna ganancia,
   referencia ni vehículo cambia. Con la caja elegida, la rueda sí ajusta su valor.
 - **Es un error si:** una ganancia cambia sin haber hecho clic en su caja.
+- [ ] Pasa  [ ] Falla
+
+### ACT-13 · Banco de rótula
+- **Para qué sirve:** probar el dron sobre la rótula, como en las pruebas de banco del dron
+  real.
+- **Pasos:** elija el vehículo «ArduCopter 5046» en la barra superior. En la sección «Banco de
+  rótula» marque «Dron sobre el banco», ponga el alabeo inicial en 5° y pulse Ctrl+R. Inicie
+  la simulación y aplique un escalón de roll de 10°. Después baje el empuje a 0.
+- **Resultado esperado:** el campo Altura queda desactivado; «Crecimiento sin control» dice
+  8.4 1/s; el dron arranca inclinado 5° y se nivela; el escalón se sigue con sobrepaso; la
+  altura queda fija en ≈ 1.04 m. Con empuje 0 cae hasta el tope (30°), la inclinación se pone
+  en ámbar y el registro avisa una sola vez.
+- **Es un error si:** el dron se traslada, la altura cambia o el aviso se repite en la misma
+  corrida.
+- [ ] Pasa  [ ] Falla
+
+### ACT-14 · Banco: parámetros en vivo y límites
+- **Pasos:** con el dron en el banco, cambie el tope de inclinación a 20° y el empuje a 0;
+  luego marque «Bloquear guiñada» y pida un yaw de 90°. Intente volar una trayectoria desde la
+  página Trayectorias y un escalón de altura.
+- **Resultado esperado:** el dron se apoya en el tope nuevo (≈ 20°); con la guiñada bloqueada
+  el rumbo no cambia; la trayectoria y el escalón de altura no arrancan y el registro explica
+  por qué. Al quitar «Dron sobre el banco» el dron vuelve a volar a la altura inicial.
+- **Es un error si:** la trayectoria arranca con el dron en el banco o la aplicación muestra
+  un error.
 - [ ] Pasa  [ ] Falla
 
 ---
@@ -847,6 +873,7 @@ página, los valores que había puesto y, si es posible, una captura.
 | EJE-10 | [ ] | [ ] | |
 | EJE-11 | [ ] | [ ] | |
 | EJE-12 | [ ] | [ ] | |
+| EJE-13 | [ ] | [ ] | |
 | ACT-01 | [ ] | [ ] | |
 | ACT-02 | [ ] | [ ] | |
 | ACT-03 | [ ] | [ ] | |
@@ -859,6 +886,8 @@ página, los valores que había puesto y, si es posible, una captura.
 | ACT-10 | [ ] | [ ] | |
 | ACT-11 | [ ] | [ ] | |
 | ACT-12 | [ ] | [ ] | |
+| ACT-13 | [ ] | [ ] | |
+| ACT-14 | [ ] | [ ] | |
 | TRA-01 | [ ] | [ ] | |
 | TRA-02 | [ ] | [ ] | |
 | TRA-03 | [ ] | [ ] | |

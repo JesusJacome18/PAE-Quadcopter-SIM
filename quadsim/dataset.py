@@ -657,7 +657,7 @@ def generar_dataset(carpeta: str, reparto: Dict[str, int] = None, tasa_hz: float
     p = get_vehicle(VEHICULO)
     meta = {
         "nombre": "Dataset de vuelo simulado del cuadricóptero PAE-X450",
-        "generador": "QuadSim 1.0.0, módulo quadsim.dataset",
+        "generador": "QuadSim 1.1.0, módulo quadsim.dataset",
         "semilla_global": semilla,
         "tasa_hz": tasa_hz,
         "marcos": {"mundo": "NED (x norte, y este, z abajo)",

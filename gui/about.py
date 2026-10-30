@@ -11,7 +11,7 @@ from __future__ import annotations
 
 #: Nombre del producto (ventana, "Acerca de", escenarios guardados).
 APP_NAME = "QuadSim"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 APP_YEAR = 2026
 
 #: Autores con su papel, en el orden en que deben figurar.
