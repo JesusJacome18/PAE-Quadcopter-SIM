@@ -131,6 +131,19 @@ ordenado), rosa de rumbos (marca magenta = rumbo ordenado, marca cian = rumbo
 estimado) y barras de los cuatro motores con el acelerador σ, las rpm y la
 línea del acelerador de hover.
 
+**Banco de rótula.** Debajo de las referencias, la sección «Banco de rótula»
+pone el dron sobre una rótula: solo gira, alrededor de un pivote fijo bajo su
+centro de masa (un péndulo invertido). La marca «Dron sobre el banco» reinicia
+la corrida y conserva las ganancias. En el banco no hay lazo de altura (el
+campo Altura se desactiva): el empuje es una fracción fija del peso, como el
+acelerador manual de Stabilize; con 0 los motores se apagan y el dron cae al
+tope. El pivote, la fricción viscosa y de Coulomb, el tope de inclinación y el
+bloqueo de guiñada cambian en vivo; el alabeo inicial se aplica al reiniciar.
+La sección muestra la inclinación y la tasa de crecimiento sin control,
+λ = √(m g d / J_pivote). La primera vez que el dron llega al tope, el registro
+lo avisa. Sobre el banco no se pueden volar trayectorias. El modelo y sus
+supuestos están en [`BANCO_Y_ARDUCOPTER.md`](BANCO_Y_ARDUCOPTER.md).
+
 > Algo para observar: en la captura, tras el escalón de 15° en roll el ángulo
 > verdadero (blanco) se queda cerca de 14° mientras el estimado (cian) marca
 > 15°. El lazo cumple con lo que *cree* el estimador. En modo actitud, un dron
@@ -288,7 +301,10 @@ Responde las preguntas típicas de los evaluadores. La tabla lista cada parámet
 su unidad; el cuadro "Fuente y supuestos" copia la fuente declarada en el
 catálogo y, en ámbar, lo que es supuesto. Las cantidades derivadas (rpm y
 acelerador de hover, relación empuje/peso, momentos máximos, frecuencia de
-paso de pala) se recalculan con el vehículo elegido. El diagrama de relojes
+paso de pala, con el número de palas de cada hélice) se recalculan con el
+vehículo elegido. La tabla incluye las palas por hélice y el filtro anti-alias
+de la IMU, que solo tiene el dron ArduCopter (75 Hz, el `INS_GYRO_FILTER` de su
+`.param`). El diagrama de relojes
 muestra, en una ventana de 20 ms, cuántas veces corre cada lazo: física RK4 a
 1 kHz, control (IMU, AHRS, filtros, PID) a 500 Hz, lazo externo a 100 Hz y el
 dibujo de la GUI a 50 Hz, que no afecta a la simulación. Debajo están las
@@ -378,11 +394,12 @@ actual y la semilla 1:
 | 09 | Falla de motor en vuelo estacionario | Avanzado | M1 al 60 %: desvío máximo de 0.142 m y M1 al 93 % de acelerador; con 50 % el mezclador se satura y el dron se aleja unos 9 m |
 | 10 | Interferencia magnética: PID frente a MPC | Avanzado | 15 µT: error de rumbo de hasta 13.7°; RMSE del PID de 0.0145 a 0.133 m y del MPC de 0.0128 a 0.026 m |
 | 11 | Barrido rápido del pasa-bajos del giroscopio | Intermedio | 51 simulaciones en unos 45 s; mejor punto, pasa-bajos de 20 Hz con Q = 1.2 y J = 0.729, en el borde del rango |
+| 12 | Dron ArduCopter en el banco de rótula | Intermedio | 400 Hz, ganancias SIMC: subida 0.12 s y sobrepaso 20 % en el banco, 0 % en vuelo libre; sin motores llega al tope de 30° en 0.5 s; con las ganancias del `.param`, subida 0.36 s y sobrepaso 5 % |
 
 Los tiempos de cómputo (ms por paso, duración de la comparación o del
 barrido) son de la máquina de desarrollo y cambian con la computadora.
 `tests/test_gui_examples.py` vuelve a medir las cifras de los ejemplos 01, 02
-y 08 en cada corrida de las pruebas: si el núcleo cambia y el texto deja de
+y 08, y `tests/test_gui_bench.py` las del 12, en cada corrida de las pruebas: si el núcleo cambia y el texto deja de
 ser cierto, una prueba falla.
 
 ## Escenarios: guardar y abrir
@@ -436,6 +453,7 @@ Las claves están en español sin tildes y todas son opcionales salvo
     "vehiculo": "pae_x450",
     "semilla": 1,
     "altura_inicial": 1.5,
+    "frecuencia_control_hz": 500,
     "modo": "trayectoria",
     "referencias": {"roll": 0, "pitch": 0, "yaw": 0, "alt": 1.5},
     "ganancias": "simc",
@@ -472,9 +490,11 @@ Las claves están en español sin tildes y todas son opcionales salvo
 | `iniciar` | con `true`, la simulación arranca al cargar |
 | `config.vehiculo` | clave del catálogo `quadsim.vehicles` |
 | `config.modo` | `actitud` (referencias manuales) o `trayectoria`, que exige `trayectoria` y `controlador` |
+| `config.frecuencia_control_hz` | tasa del lazo de actitud, de 100 a 2000 Hz (500 por defecto; 400 es `SCHED_LOOP_RATE` de ArduCopter) |
+| `config.banco` | banco de rótula: `activo`, `pivote_bajo_cm_mm` (0–200), `empuje_relativo` (0–1.5, fracción del peso), `friccion_viscosa` [N·m·s/rad], `friccion_coulomb` [N·m], `tope_inclinacion_deg` (5–89), `bloquear_guinada`, `alabeo_inicial_deg` y `cabeceo_inicial_deg` (±30). No se combina con `modo: trayectoria`; ver el ejemplo 12 |
 | `config.ganancias` | `"simc"` o, por eje, `angle_kp`, `rate_kp`, `rate_ki` y `rate_kd`; la clave `altura` guarda el lazo vertical (`pos_kp`, `vel_kp`, `vel_ki`, `vel_kd`) |
 | `config.estimador.tipo` | `ideal`, `madgwick`, `mahony` o `ekf`; `ganancias` usa los nombres del núcleo (`beta`; `kp`, `ki`; `gyro_noise`, `bias_walk`, `accel_noise`, `mag_noise`) |
-| `config.filtros` | por eje, hasta dos etapas; `tipo` es `none`, `lowpass`, `butterworth`, `chebyshev` o `notch`, y `fc` debe quedar por debajo de 250 Hz |
+| `config.filtros` | por eje, hasta dos etapas; `tipo` es `none`, `lowpass`, `butterworth`, `chebyshev` o `notch`, y `fc` debe quedar por debajo de Nyquist (250 Hz a 500 Hz de control) |
 | `config.trayectoria`, `config.controlador` | `tipo` es la clave del registro (`hover`, `circle`, `lemniscate`…; `pid`, `mpc`, `nmpc`, `rl`, `mpc_rl`) y `parametros` usa los nombres de su `PARAMS`; lo que falte queda en su valor por defecto |
 | `config.perturbaciones.viento` | rapidez en m/s; las direcciones, en grados, indican de dónde viene (0 = norte) |
 | `acciones` | en tiempo simulado: `escalon` (`eje`, `amplitud`, `ventana`), `referencia` (`roll`, `pitch`, `yaw`, `alt`), `notch_en_vibracion`, `mensaje` (`texto`) y `pausa` |
@@ -576,7 +596,7 @@ corren en `QThread` sobre copias de la configuración (`gui/workers.py`).
 | `gui/dialogs.py` | bienvenida, galería de ejemplos, abrir y guardar escenario, atajos, Acerca de, tarjeta guía |
 | `gui/about.py` | nombre, versión, autores y filiación (una sola fuente) |
 | `gui/settings.py` | preferencias persistentes (QSettings) |
-| `examples/*.json` | los once ejemplos |
+| `examples/*.json` | los doce ejemplos |
 | `gui/theme.py` | tokens de color y tipografía, hoja de estilos oscura y clara |
 | `gui/store.py`, `gui/workers.py`, `gui/registry.py`, `gui/analysis.py` | buffers, hilos, acceso tolerante a los registros, cálculos de gráficas |
 | `gui/pages/*.py` | las seis áreas de trabajo |

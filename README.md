@@ -8,11 +8,11 @@
 <a href="https://primbiolab.org/"><img src="https://img.shields.io/badge/Semillero-PRIMBIO-ff2bd6?style=for-the-badge&labelColor=05070f"/></a>
 <img src="https://img.shields.io/badge/UNAL-Sede%20La%20Paz-7cff6b?style=for-the-badge&labelColor=05070f"/>
 
-<img src="https://img.shields.io/badge/QuadSim-v1.0.0-00e5ff?style=flat-square&labelColor=05070f"/>
+<img src="https://img.shields.io/badge/QuadSim-v1.1.0-00e5ff?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/python-3.10%2B-00e5ff?style=flat-square&logo=python&logoColor=white&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/GUI-PySide6%20%2B%20pyqtgraph-00e5ff?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/n%C3%BAcleo-solo%20numpy-00e5ff?style=flat-square&labelColor=05070f"/>
-<img src="https://img.shields.io/badge/pruebas-231%20pasando-7cff6b?style=flat-square&labelColor=05070f"/>
+<img src="https://img.shields.io/badge/pruebas-277%20pasando-7cff6b?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/f%C3%ADsica-RK4%20%40%201%20kHz-ff2bd6?style=flat-square&labelColor=05070f"/>
 
 <br/><br/>
@@ -33,7 +33,7 @@
 
 ## ◈ Qué es
 
-**QuadSim** (versión 1.0.0; el repositorio conserva el nombre `PAE-Quadcopter-SIM`) es
+**QuadSim** (versión 1.1.0; el repositorio conserva el nombre `PAE-Quadcopter-SIM`) es
 el simulador de un **Proyecto Académico Especial (PAE)** de Ingeniería Mecatrónica de la
 **Universidad Nacional de Colombia, Sede La Paz** (Valledupar), desarrollado dentro del
 **Semillero de Investigación [PRIMBIO](https://primbiolab.org/)** (*Plataformas Robóticas
@@ -83,20 +83,29 @@ señal APRBS para que el PWM no quede determinado por el controlador. Pensado pa
 neuronales que aprendan la dinámica del dron. Formato, columnas y verificación en
 [`docs/DATASET.md`](docs/DATASET.md).
 
+**Dron ArduCopter y banco de rótula.** El catálogo trae el dron ArduCopter con BeagleBone Blue
+(670 g, bastidor X de 300 mm, hélices tripala 5046 o 6045), con masa e inercias de su CAD y el
+acelerador en la escala de salida de ArduPilot. En la página Actitud, el **banco de rótula** pone
+el dron sobre un pivote fijo bajo su centro de masa: solo gira, como en las pruebas de banco del
+dron real, con la gravedad que lo desestabiliza, la fricción de la rótula y su tope de
+inclinación. Modelo, supuestos y comparación con las ganancias del `.param` en
+[`docs/BANCO_Y_ARDUCOPTER.md`](docs/BANCO_Y_ARDUCOPTER.md).
+
 ### Primeros pasos dentro del programa
 
 Nadie tiene que leer un manual para empezar. La primera vez que se abre, el programa ofrece un
 **tour guiado** que recorre cada parte de la ventana paso a paso; se repite cuando se quiera con
 `F1`, con el botón **?** de la barra superior o desde **Ayuda → Tour guiado**, y `Mayús+F1`
 explica solo la página visible. La **galería de ejemplos** (`F2` o menú **Ejemplos**) trae
-**11 escenarios listos para cargar**, del primer vuelo con escalón de roll hasta la interferencia
-magnética con PID frente a MPC y un barrido rápido del pasa-bajos; cada uno deja el simulador
+**12 escenarios listos para cargar**, del primer vuelo con escalón de roll hasta la interferencia
+magnética con PID frente a MPC, un barrido rápido del pasa-bajos y el dron ArduCopter en el banco
+de rótula; cada uno deja el simulador
 configurado, abre la página que corresponde y dice qué resultado esperar.
 
 <table>
 <tr>
 <td width="50%"><img src="docs/screenshots/doc_tour_1_bienvenida.png"/><br/><b>Tour guiado.</b> Primer paso del recorrido; flechas para avanzar, Esc para salir.</td>
-<td width="50%"><img src="docs/screenshots/doc_ejemplos.png"/><br/><b>Galería de ejemplos.</b> Once escenarios por nivel (básico, intermedio, avanzado).</td>
+<td width="50%"><img src="docs/screenshots/doc_ejemplos.png"/><br/><b>Galería de ejemplos.</b> Doce escenarios por nivel (básico, intermedio, avanzado).</td>
 </tr>
 </table>
 
@@ -142,7 +151,7 @@ original. Los datos son coherentes entre sí: el acelerador de vuelo estacionari
 **4. Construir encima, verificando cada bloque.** Sobre ese núcleo se agregaron sensores con
 vibración real de las hélices, tres estimadores, cinco controladores de posición, perturbaciones,
 barridos automáticos y aprendizaje por refuerzo offline. Ningún resultado se reporta sin
-ejecutarlo: 231 pruebas automáticas y un script de verificación numérica respaldan las
+ejecutarlo: 277 pruebas automáticas y un script de verificación numérica respaldan las
 cifras del documento del modelo.
 
 **5. Pedir que alguien busque los errores.** En octubre de 2026 una revisión técnica
@@ -297,11 +306,11 @@ IMU es un supuesto pendiente de medir. La lista completa está en la sección 17
 
 ### Ejecutable para Windows (sin instalar Python)
 
-1. Descarga `QuadSim-1.0.0-win64.zip` desde la sección **Releases** del repositorio (una por
+1. Descarga `QuadSim-1.1.0-win64.zip` desde la sección **Releases** del repositorio (una por
    versión publicada) o, para la última compilación, desde la pestaña **Actions** (artefacto del
    flujo *Ejecutable Windows*).
 2. Descomprímelo completo. Queda la carpeta `QuadSim/` con `QuadSim.exe` y la subcarpeta
-   `_internal/`, que trae Python, las bibliotecas, los 11 ejemplos y los modelos de RL. El
+   `_internal/`, que trae Python, las bibliotecas, los 12 ejemplos y los modelos de RL. El
    ejecutable necesita esa carpeta: no lo saques de ahí.
 3. Abre `QuadSim.exe`. La primera vez Windows puede mostrar «Windows protegió su PC»,
    porque el ejecutable no está firmado: «Más información» → «Ejecutar de todas formas». Los
@@ -310,7 +319,7 @@ IMU es un supuesto pendiente de medir. La lista completa está en la sección 17
 Para compilarlo en tu propio equipo Windows con Python 3.10+, basta con hacer doble clic en
 `build_exe.bat`: crea un entorno virtual, instala las dependencias y PyInstaller, compila con
 [`packaging/QuadSim.spec`](packaging/QuadSim.spec) (modo de una carpeta) y deja
-`QuadSim-1.0.0-win64.zip`. El flujo
+`QuadSim-1.1.0-win64.zip`. El flujo
 [`.github/workflows/build-windows.yml`](.github/workflows/build-windows.yml) hace lo mismo en una
 máquina Windows de GitHub Actions: corre un subconjunto de pruebas, compila, ejecuta
 `QuadSim.exe --autoprueba` sobre la pantalla real de Windows (revisa que carguen los
@@ -320,7 +329,11 @@ siga vivo a los 20 s, y publica el zip como artefacto (y en *Releases* cuando se
 versión `v*`). La misma autoprueba se puede correr en cualquier equipo:
 `QuadSim.exe --autoprueba informe.txt` deja el resultado en `informe.txt`.
 
-**Versiones.** QuadSim 1.0.0 es la primera versión publicada con este nombre. Las versiones 3.x
+**Versiones.** QuadSim 1.1.0 agrega el dron ArduCopter con BeagleBone Blue en tres variantes
+(hélice 5046 o 6045 y dos rangos posibles del ESC), el banco de rótula, el número de palas por
+hélice con un filtro anti-alias de la IMU, la tasa del lazo de control en los escenarios (400 Hz
+para ArduCopter) y el ejemplo 12. Con el banco apagado y los vehículos de antes, la simulación da
+los mismos resultados que la 1.0.0. QuadSim 1.0.0 es la primera versión publicada con este nombre. Las versiones 3.x
 eran las internas del desarrollo, con el nombre de trabajo QuadSIM-PRIMBIO. La 1.0.0 incluye el
 generador de datasets de vuelo para entrenar modelos dinámicos (*Simulación → Generar dataset de
 vuelo…*, [`docs/DATASET.md`](docs/DATASET.md)) y las correcciones del ejecutable de Windows de la
@@ -366,7 +379,7 @@ las pruebas necesitan además `pip install -r requirements-dev.txt` (scipy, matp
 
 ```bash
 # Windows: set PYTHONPATH=.      Linux/macOS: export PYTHONPATH=.
-python -m pytest -q                                   # 231 pruebas (+4 de tiempo de cómputo: PERF_TESTS=1)
+python -m pytest -q                                   # 277 pruebas (+4 de tiempo de cómputo: PERF_TESTS=1)
 python experiments/model_verification.py              # evidencia numérica del modelo (~1 min)
 python experiments/benchmark_controllers.py \
   --trajectories lemniscate circle lemniscate_fast step_waypoints \
@@ -384,7 +397,8 @@ bash docs/modelo/build.sh --verify                    # recompila el PDF (requie
 PAE-Quadcopter-SIM/
 ├── quadsim/                  núcleo de simulación (solo numpy, sin interfaz)
 │   ├── dynamics.py           modelo 6-DOF Newton–Euler + RK4
-│   ├── vehicles.py           catálogo de vehículos con fuentes (PAE-X450 por defecto)
+│   ├── bench.py              banco de rótula: rotación alrededor de un pivote fijo
+│   ├── vehicles.py           catálogo de vehículos con fuentes (PAE-X450 por defecto, ArduCopter)
 │   ├── propulsion.py         ESC + motor brushless, mezclador con desaturación
 │   ├── sensors.py            IMU, magnetómetro, barómetro, vibración de hélices
 │   ├── estimators.py         Madgwick, Mahony, EKF, navegación
@@ -396,11 +410,11 @@ PAE-Quadcopter-SIM/
 │   └── dataset.py            generador de datasets de vuelo (y dataset_verificacion.py)
 ├── gui/  ·  main.py          interfaz PySide6 (6 páginas, tour guiado, galería de ejemplos)
 ├── packaging/  ·  build_exe.bat   compilación del ejecutable de Windows (PyInstaller)
-├── examples/                 11 escenarios de ejemplo (.json)
+├── examples/                 12 escenarios de ejemplo (.json)
 ├── experiments/              banco de controladores, barridos, RL, dataset, verificación del modelo
 ├── models/                   pesos de las políticas RL entrenadas
 ├── docs/                     modelo matemático (PDF/LaTeX), guías, capturas y documentos de registro
-└── tests/                    235 pruebas automáticas (4 de tiempo de cómputo, opcionales)
+└── tests/                    281 pruebas automáticas (4 de tiempo de cómputo, opcionales)
 ```
 
 <img src="assets/divider.svg" width="100%"/>
@@ -430,7 +444,7 @@ Practice*, Springer; repositorio [CopterSim](https://github.com/XunhuaDai/Copter
 @misc{quadsim_2026,
   author       = {Jácome, Jesús Daniel and Burgos Flórez, Francisco Javier},
   title        = {QuadSim: simulador 6-DOF para sintonía de controladores de cuadricóptero},
-  version      = {1.0.0},
+  version      = {1.1.0},
   year         = {2026},
   howpublished = {Proyecto Académico Especial, Semillero PRIMBIO, Grupo IAM-NANO, Universidad Nacional de Colombia, Sede La Paz},
   url          = {https://github.com/JesusJacome18/PAE-Quadcopter-SIM}

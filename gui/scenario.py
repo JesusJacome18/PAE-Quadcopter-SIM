@@ -19,6 +19,10 @@ otra cosa):
       "iniciar": true,
       "config": {
         "vehiculo", "semilla", "altura_inicial", "modo": "actitud" | "trayectoria",
+        "frecuencia_control_hz": 500 (lazo de actitud; 400 = SCHED_LOOP_RATE de ArduCopter),
+        "banco": {"activo", "pivote_bajo_cm_mm", "empuje_relativo", "friccion_viscosa",
+                  "friccion_coulomb", "tope_inclinacion_deg", "bloquear_guinada",
+                  "alabeo_inicial_deg", "cabeceo_inicial_deg"},
         "referencias": {"roll", "pitch", "yaw", "alt"},
         "ganancias": "simc" | {eje: {angle_kp, rate_kp, rate_ki, rate_kd},
                                "altura": {pos_kp, vel_kp, vel_ki, vel_kd}},
@@ -106,6 +110,17 @@ ALT_GAIN_LIMITS = {"pos_kp": 10.0, "vel_kp": 30.0, "vel_ki": 60.0, "vel_kd": 5.0
 EMI_KEYS = {"activa": "enabled", "ganancia_uT": "gain_uT", "direccion": "direction_B",
             "pulsos_hz": "spike_rate_hz", "pulsos_uT": "spike_uT"}
 SENSOR_KEYS = {"vibracion": "vibration_enabled", "vibracion_giro_dps": "vib_gyro_dps"}
+#: Banco de rótula: nombre en el archivo -> (atributo de BenchConfig, escala, rango
+#: en unidades del archivo). Los rangos son los de los campos de la página Actitud.
+BENCH_KEYS = {"pivote_bajo_cm_mm": ("pivot_below_cm_m", 1e-3, (0.0, 200.0)),
+              "empuje_relativo": ("thrust_ratio", 1.0, (0.0, 1.5)),
+              "friccion_viscosa": ("viscous_Nms", 1.0, (0.0, 0.05)),
+              "friccion_coulomb": ("coulomb_Nm", 1.0, (0.0, 0.1)),
+              "tope_inclinacion_deg": ("tilt_limit_deg", 1.0, (5.0, 89.0)),
+              "alabeo_inicial_deg": ("initial_roll_deg", 1.0, (-30.0, 30.0)),
+              "cabeceo_inicial_deg": ("initial_pitch_deg", 1.0, (-30.0, 30.0))}
+#: Frecuencias del lazo de control aceptadas en "frecuencia_control_hz".
+CTRL_HZ_LIMITS = (100.0, 2000.0)
 
 
 class ScenarioError(ValueError):
@@ -283,7 +298,7 @@ def _build_config(scen: dict):
     warns: List[str] = []
     known = {"vehiculo", "semilla", "altura_inicial", "modo", "referencias", "ganancias",
              "estimador", "sensores", "filtros", "trayectoria", "controlador",
-             "perturbaciones"}
+             "perturbaciones", "frecuencia_control_hz", "banco"}
     for k in c:
         if k not in known:
             warns.append(f"Clave desconocida en config: '{k}' (se ignora).")
@@ -296,6 +311,21 @@ def _build_config(scen: dict):
     cfg.vehicle = veh
     cfg.seed = int(_num(c.get("semilla", cfg.seed), "semilla", 0, 2 ** 31 - 1))
     cfg.start_alt = _num(c.get("altura_inicial", cfg.start_alt), "altura_inicial", 0.2, 50)
+    cfg.ctrl_hz = _num(c.get("frecuencia_control_hz", cfg.ctrl_hz), "frecuencia_control_hz",
+                       *CTRL_HZ_LIMITS)
+
+    # ---- banco de rótula
+    bn = _dict(c.get("banco"), "config.banco")
+    for k, v in bn.items():
+        if k == "activo":
+            cfg.bench.enabled = _bool(v, "banco.activo")
+        elif k == "bloquear_guinada":
+            cfg.bench.lock_yaw = _bool(v, "banco.bloquear_guinada")
+        elif k in BENCH_KEYS:
+            attr, scale, lim = BENCH_KEYS[k]
+            setattr(cfg.bench, attr, _num(v, f"banco.{k}", *lim) * scale)
+        else:
+            warns.append(f"Clave desconocida en banco: '{k}' (se ignora).")
 
     # ---- estimador
     e = _dict(c.get("estimador"), "config.estimador")
@@ -472,6 +502,9 @@ def _build_config(scen: dict):
     if mode not in ("actitud", "trayectoria"):
         raise ScenarioError("'modo' debe ser \"actitud\" o \"trayectoria\".")
     fly = mode == "trayectoria"
+    if fly and cfg.bench.enabled:
+        raise ScenarioError("Sobre el banco de rótula el dron no sigue trayectorias: use "
+                            "\"modo\": \"actitud\" o desactive el banco.")
     if fly and (traj is None or ctrl is None):
         raise ScenarioError("El modo trayectoria necesita 'trayectoria' y 'controlador'.")
 
@@ -497,6 +530,13 @@ def _build_config(scen: dict):
     return cfg, gains, sp, traj, ctrl, fly, warns
 
 
+def _capture_bench(b) -> dict:
+    out = {"activo": bool(b.enabled), "bloquear_guinada": bool(b.lock_yaw)}
+    for k, (attr, scale, _) in BENCH_KEYS.items():
+        out[k] = round(float(getattr(b, attr)) / scale, 9)
+    return out
+
+
 def capture(win) -> dict:
     """Escenario con la configuración ACTUAL de la ventana (para guardar)."""
     from .pages.attitude import AttitudePage
@@ -519,7 +559,9 @@ def capture(win) -> dict:
         "vehiculo": cfg.vehicle,
         "semilla": int(cfg.seed),
         "altura_inicial": float(ctl.attitude_start_alt),
+        "frecuencia_control_hz": float(cfg.ctrl_hz),
         "modo": "trayectoria" if fly else "actitud",
+        "banco": _capture_bench(cfg.bench) if cfg.bench.enabled else None,
         "referencias": {k: float(v) for k, v in sp.items()},
         "ganancias": dict(copy.deepcopy(ctl.gains()), altura=ctl.alt_gains()),
         "estimador": {"tipo": cfg.estimator, "ganancias": dict(sim.estimator.gains()),
@@ -729,7 +771,8 @@ def _describe(scen: dict) -> List[Tuple[str, str]]:
     c = scen.get("config", {}) or {}
     out = []
     veh = c.get("vehiculo", "pae_x450")
-    out.append(("Vehículo", VEHICLES[veh].name.split(" (")[0] if veh in VEHICLES else veh))
+    out.append(("Vehículo", (VEHICLES[veh].short_name or VEHICLES[veh].name.split(" (")[0])
+                            if veh in VEHICLES else veh))
     e = c.get("estimador", {}) or {}
     est = EST_LABEL.get(e.get("tipo", "mahony"), e.get("tipo", "mahony"))
     if e.get("compensar_aceleracion") is False:
@@ -743,8 +786,16 @@ def _describe(scen: dict) -> List[Tuple[str, str]]:
         out.append(("Modo", "Seguimiento de trayectoria"))
         out.append(("Trayectoria", registry.label_of(trajs[tk], tk) if tk in trajs else tk))
         out.append(("Controlador", registry.label_of(ctrls[ck], ck) if ck in ctrls else ck))
+    elif (c.get("banco") or {}).get("activo"):
+        b = c.get("banco") or {}
+        txt = "Banco de rótula"
+        if "pivote_bajo_cm_mm" in b:
+            txt += f", pivote {float(b['pivote_bajo_cm_mm']):g} mm bajo el centro de masa"
+        out.append(("Modo", txt))
     else:
         out.append(("Modo", "Actitud (referencias manuales)"))
+    if c.get("frecuencia_control_hz") not in (None, 500, 500.0):
+        out.append(("Lazo de control", f"{float(c['frecuencia_control_hz']):g} Hz"))
     g = c.get("ganancias", "simc")
     out.append(("Ganancias PID", "SIMC del vehículo" if g in (None, "simc") else
                 "definidas en el escenario"))

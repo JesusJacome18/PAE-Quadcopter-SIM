@@ -15,13 +15,19 @@ Sensores modelados (los del dron de referencia):
 Cada medida = verdad + sesgo + ruido blanco + VIBRACION + retardo.
 
 La vibracion merece explicacion porque es la razon de ser de los filtros
-notch. Cada helice de 2 palas desbalanceada sacude el bastidor a la
-frecuencia de paso de pala  f_bp = 2 * Omega / (2 pi). En hover del PAE-X450,
-Omega = 557 rad/s -> f_bp = 177 Hz. Esa senal entra al giroscopio y al
+notch. Cada helice de N palas desbalanceada sacude el bastidor a la
+frecuencia de paso de pala  f_bp = N * Omega / (2 pi). En hover del PAE-X450
+(2 palas), Omega = 557 rad/s -> f_bp = 177 Hz. Esa senal entra al giroscopio y al
 acelerometro; con la IMU muestreada a 500 Hz cae por debajo de Nyquist
 (250 Hz) y se ve como un tono que se MUEVE con el acelerador. Un pasa-bajos
 de Fc baja la quita pero agrega retardo; un notch centrado en f_bp la quita
 casi sin retardo, si se acierta la frecuencia. Ese es el experimento.
+
+Si f_bp pasa de Nyquist el tono se REPLIEGA (aliasing): las helices tripala
+del dron ArduCopter giran a ~1000 rad/s, f_bp = 480 Hz, que muestreado a
+500 Hz aparece en 20 Hz, dentro del lazo de control. Un autopiloto real lo
+evita filtrando a la tasa del sensor (ArduPilot: INS_GYRO_FILTER a 1-8 kHz,
+antes de bajar a 400 Hz). `imu_antialias_hz` modela esa atenuacion.
 
 Densidades de ruido de hoja de datos (1 sigma):
   ISM330DHCX: giroscopio 5 mdps/sqrt(Hz), acelerometro 60 ug/sqrt(Hz)
@@ -44,7 +50,7 @@ import math
 import random
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, List, Sequence, Tuple
+from typing import Deque, List, Optional, Sequence, Tuple
 
 from . import math3d as m3
 from .vehicles import G
@@ -63,7 +69,14 @@ class SensorConfig:
     vibration_enabled: bool = True
     vib_gyro_dps: float = 3.0                 # amplitud a omega de hover
     vib_accel: float = 1.5                    # m/s^2 a omega de hover
-    blades: int = 2
+    # palas por helice; None = las del vehiculo (VehicleParams.blades)
+    blades: Optional[int] = None
+    # Filtro anti-alias de la IMU [Hz]: pasa-bajos de 2o orden que corre a la
+    # tasa del SENSOR, antes de submuestrear al lazo de control. Solo atenua
+    # el tono de vibracion segun su frecuencia; su retardo sobre la senal de
+    # control lo representan los filtros por eje del simulador.
+    # None = el del vehiculo (VehicleParams.imu_antialias_hz); 0 = sin filtro.
+    imu_antialias_hz: Optional[float] = None
     # magnetometro
     mag_field_uT: float = 32.8
     mag_inclination_deg: float = 34.4
@@ -176,8 +189,14 @@ class _Delay:
 
 class SensorSuite:
     def __init__(self, cfg: SensorConfig, dt: float, omega_hover: float,
-                 seed: int = 0):
+                 seed: int = 0, blades: int = 2,
+                 imu_antialias_hz: Optional[float] = None):
         self.cfg = cfg
+        # palas por helice: las de SensorConfig si se fijaron, si no las del
+        # vehiculo (2 en los vehiculos de referencia, 3 en el ArduCopter)
+        self.blades = int(cfg.blades) if cfg.blades else int(blades)
+        aa = cfg.imu_antialias_hz if cfg.imu_antialias_hz is not None else imu_antialias_hz
+        self.antialias_hz = float(aa) if aa else 0.0
         self.dt = dt
         self.omega_hover = omega_hover
         self.rng = random.Random(seed)
@@ -241,15 +260,20 @@ class SensorSuite:
         if c.vibration_enabled:
             vg = math.radians(c.vib_gyro_dps)
             fsum = 0.0
+            fc = self.antialias_hz
             for i in range(4):
                 k = (Om[i] / self.omega_hover) ** 2 if self.omega_hover > 0 else 0
-                s = math.sin(c.blades * self.rotor_phase[i])
+                if fc > 0.0:
+                    # |H| de un Butterworth de 2o orden en f_bp del rotor
+                    fr = self.blades * Om[i] / (2 * math.pi * fc)
+                    k /= math.sqrt(1.0 + fr ** 4)
+                s = math.sin(self.blades * self.rotor_phase[i])
                 d = self.vib_dir[i]
                 for a in range(3):
                     gyro[a] += vg * k * s * d[a]
                     acc[a] += c.vib_accel * k * s * d[(a + 1) % 3]
                 fsum += Om[i]
-            self.vibration_freq_hz = c.blades * fsum / 4 / (2 * math.pi)
+            self.vibration_freq_hz = self.blades * fsum / 4 / (2 * math.pi)
 
         imu = self._imu_delay.step((tuple(gyro), tuple(acc)))
 

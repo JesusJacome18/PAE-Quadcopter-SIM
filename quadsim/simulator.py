@@ -35,6 +35,12 @@ identificar el ESC y el firmware reales.
 Modos:
     "attitude"    el usuario fija roll/pitch/yaw y altura (sintonia de PID)
     "trajectory"  un controlador de posicion sigue una trayectoria
+
+Banco de rotula (SimConfig.bench.enabled, ver quadsim/bench.py): el dron
+gira alrededor de un pivote fijo. Se usa con el modo actitud: las referencias
+de roll/pitch/yaw siguen valiendo, pero no hay lazo de altura (el empuje lo
+fija bench.thrust_ratio, como el acelerador manual de Stabilize) ni
+seguimiento de trayectorias.
 """
 
 from __future__ import annotations
@@ -47,6 +53,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from . import math3d as m3
+from .bench import BenchConfig, BenchDynamics
 from .control.attitude import (AXES, AttitudeController, VerticalController,
                                acceleration_to_attitude)
 from .disturbances import DisturbanceConfig, DisturbanceManager
@@ -147,6 +154,8 @@ class SimConfig:
     # Limite de inclinacion comun a TODOS los controladores de posicion.
     tilt_max_deg: float = 30.0
     mode: str = "attitude"
+    # Banco de rotula (apagado por defecto): ver quadsim/bench.py
+    bench: BenchConfig = field(default_factory=BenchConfig)
     start_airborne: bool = False
     start_alt: float = 1.0
     seed: int = 1
@@ -231,9 +240,13 @@ class Simulation:
         self.log_every = max(1, int(round(c.ctrl_hz / c.log_hz)))
         self.integrate = INTEGRATORS[c.integrator]
 
-        self.dyn = QuadrotorDynamics(self.p)
+        self.bench_on = bool(c.bench.enabled)
+        self.dyn = (BenchDynamics(self.p, c.bench) if self.bench_on
+                    else QuadrotorDynamics(self.p))
         self.mixer = Mixer(self.p)
-        self.sensors = SensorSuite(c.sensors, self.dt_ctrl, self.p.omega_hover, c.seed)
+        self.sensors = SensorSuite(c.sensors, self.dt_ctrl, self.p.omega_hover, c.seed,
+                                   blades=self.p.blades,
+                                   imu_antialias_hz=self.p.imu_antialias_hz)
         self.dist = DisturbanceManager(c.disturbances, c.seed)
         self.make_estimator()
         self.nav = NavEstimator(self.dt_ctrl, accel_noise=c.nav_accel_noise,
@@ -272,9 +285,13 @@ class Simulation:
             self._sigma_hist = deque([[s0] * 4] * self._sigma_hist.maxlen,
                                      maxlen=self._sigma_hist.maxlen)
             self._esc_out = [s0] * 4
-        self.armed = c.start_airborne
+        if self.bench_on:
+            self._init_bench_state()
+        self.armed = self._bench_armed() if self.bench_on else c.start_airborne
         self.setpoint = {"roll": 0.0, "pitch": 0.0, "yaw": 0.0,
                          "alt": c.start_alt if c.start_airborne else 0.0}
+        if self.bench_on:
+            self.setpoint["yaw"] = m3.wrap_pi(math.radians(c.bench.initial_yaw_deg))
         self.att_sp = (0.0, 0.0, 0.0)
         self.thrust_cmd = 0.0
         self.yaw_rate_ff = 0.0
@@ -298,7 +315,9 @@ class Simulation:
         for i, bq in enumerate(self.acc_lpf):
             bq.reset((0.0, 0.0, -G)[i])
         self._est_ready = False
-        if c.start_airborne:
+        if self.bench_on:
+            self._prime_bench()
+        elif c.start_airborne:
             self._prime_airborne()
         self.alt_filter_obj = Biquad(c.outer_hz, c.alt_filter.ftype, c.alt_filter.fc,
                                      c.alt_filter.q)
@@ -328,6 +347,54 @@ class Simulation:
         if self.cfg.acc_compensation and self.cfg.nav_uses_position_sensor:
             self.acc_comp.gain = 1.0
         self.thrust_cmd = self.nominal.weight
+
+    # ------------------------------------------------------ banco de rotula
+    def _bench_armed(self) -> bool:
+        return self.bench_on and self.cfg.bench.thrust_ratio > 0.0
+
+    def _init_bench_state(self):
+        """Estado inicial sobre el banco: actitud inicial, rotores ya girando
+        con el empuje pedido (si esta armado) y p, v sobre la restriccion."""
+        b = self.cfg.bench
+        x = self.x
+        q = m3.euler_to_q(math.radians(b.initial_roll_deg),
+                          math.radians(b.initial_pitch_deg),
+                          math.radians(b.initial_yaw_deg))
+        x[IQ:IQ + 4] = list(q)
+        x[IW:IW + 3] = [0.0, 0.0, 0.0]
+        T = max(0.0, b.thrust_ratio) * self.p.weight
+        w0 = math.sqrt(T / (4.0 * self.p.Ct)) if b.thrust_ratio > 0 else 0.0
+        w0 = min(w0, self.p.omega_max)
+        x[IR:IR + 4] = [w0] * 4
+        self.dyn.project(x)
+        from .propulsion import esc_inverse
+        s0 = esc_inverse(self.p, w0) if w0 > 0.0 else 0.0
+        self._sigma_hist = deque([[s0] * 4] * self._sigma_hist.maxlen,
+                                 maxlen=self._sigma_hist.maxlen)
+        self._esc_out = [s0] * 4
+
+    def _prime_bench(self):
+        """Arranque sobre el banco: el AHRS se alinea con el dron quieto en la
+        rotula (como la alineacion en tierra de un autopiloto) y el
+        navegador parte de la posicion del centro de masa."""
+        x = self.x
+        self.sensors.prime(x)
+        self.estimator.q = m3.q_mul(self.estimator.q_decl_inv, tuple(x[IQ:IQ + 4]))
+        self.estimator.initialized = True
+        self.nav.reset((x[0], x[1], x[2]))
+        self.nav.settle(self.cfg.sensors.pos_rate_hz if self.cfg.nav_uses_position_sensor
+                        else 0.0, self.cfg.ctrl_hz)
+        self.thrust_cmd = max(0.0, self.cfg.bench.thrust_ratio) * self.nominal.weight
+
+    @property
+    def bench_tilt_deg(self) -> float:
+        """Inclinacion respecto a la vertical [deg] (en cualquier modo)."""
+        return math.degrees(math.acos(max(-1.0, min(1.0, m3.q_to_rot(
+            self.x[IQ:IQ + 4])[2][2]))))
+
+    def set_bench_thrust(self, ratio: float):
+        """Empuje colectivo en el banco, como fraccion del peso (0 = apagado)."""
+        self.cfg.bench.thrust_ratio = max(0.0, float(ratio))
 
     def make_estimator(self):
         c = self.cfg
@@ -540,7 +607,10 @@ class Simulation:
             self.x, _ = self.integrate(f, self.x, dt)
             renormalize_quat(self.x)
             self.sensors.advance_rotor_phase(self.x[IR:IR + 4], dt)
-            self._ground_contact()
+            if self.bench_on:
+                self.dyn.project(self.x)
+            else:
+                self._ground_contact()
         self.t += self.dt_ctrl
         self.k += 1
         if c.log_enabled and self.k % self.log_every == 0:
@@ -572,6 +642,8 @@ class Simulation:
         return self._esc_out
 
     def _on_ground(self) -> bool:
+        if self.bench_on:
+            return False
         return self.x[2] >= -1e-6
 
     def _ground_contact(self):
@@ -593,6 +665,14 @@ class Simulation:
         sp = self.setpoint
         alt_est = -self.nav.position[2]
         climb_est = -self.nav.velocity[2]
+        if self.bench_on:
+            # banco: empuje fijo (acelerador manual), solo referencias de actitud
+            self.armed = self._bench_armed()
+            self.thrust_cmd = (min(c.bench.thrust_ratio * self.nominal.weight,
+                                   0.95 * self.nominal.max_thrust) if self.armed else 0.0)
+            self.att_sp = (sp["roll"], sp["pitch"], sp["yaw"])
+            self.yaw_rate_ff = 0.0
+            return
         if c.mode == "trajectory" and self.position_controller is not None \
                 and self.trajectory is not None:
             self.armed = True
@@ -692,6 +772,7 @@ class Simulation:
             "vib_hz": self.sensors.vibration_freq_hz,
             "mass": self.p.mass, "payload_kg": self.payload_kg,
             "armed": self.armed, "estimator": self.estimator.name,
+            "bench": self.bench_on, "tilt_deg": self.bench_tilt_deg,
             "acc_comp_gain": self.acc_comp.gain,
             "gyro_bias_est": tuple(D(b) for b in self.estimator.bias),
             "gyro_bias_true": tuple(D(b) for b in self.sensors.gyro_bias),

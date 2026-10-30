@@ -254,7 +254,7 @@ def test_dialogs_build(app, win):
     for s in (about.APP_NAME, about.APP_VERSION, "Jesús Daniel Jácome",
               "Francisco Javier Burgos Flórez", "director", str(about.APP_YEAR)):
         assert s in txt, s
-    assert about.APP_NAME == "QuadSim" and about.APP_VERSION == "1.0.0"
+    assert about.APP_NAME == "QuadSim" and about.APP_VERSION == "1.1.0"
     # el programa no lleva filiación institucional
     for s in ("PRIMBIO", "IAM-NANO", "Universidad", "Sede La Paz"):
         assert s not in txt, s
