@@ -35,10 +35,11 @@ from typing import Dict, Optional
 import numpy as np
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 
+from quadsim.control.ardupilot import ArduPilotParams
 from quadsim.control.attitude import AXES
 from quadsim.control.tuning import suggest_attitude_gains, suggest_vertical_gains
 from quadsim.disturbances import MotorFault, PayloadEvent
-from quadsim.simulator import SimConfig, Simulation
+from quadsim.simulator import ATTITUDE_LAWS, FilterStage, SimConfig, Simulation
 from quadsim.vehicles import VEHICLES
 
 try:   # inicialización común de los experimentos (la escribe otro módulo)
@@ -85,6 +86,7 @@ class SimulationController(QObject):
     disturbances_changed = Signal()
     step_test_done = Signal(dict)
     bench_changed = Signal()            # se activó/desactivó o cambió el banco de rótula
+    law_changed = Signal(str)           # ley de actitud ("quadsim" | "ardupilot")
     event = Signal(str, str)            # nivel ("info", "warn", "error"), texto
 
     GUI_HZ = 50.0
@@ -394,8 +396,12 @@ class SimulationController(QObject):
         self.vehicle_changed.emit(key)
         self.gains_changed.emit(self.sim.att_ctrl.get_gains())
         self.reset_done.emit()
-        self.event.emit("info", f"Vehículo: {self.sim.p.name}. Ganancias SIMC recalculadas "
-                                f"para este modelo.")
+        if self.sim.cfg.attitude_law == "ardupilot":
+            self.event.emit("info", f"Vehículo: {self.sim.p.name}. Ganancias de "
+                                    f"{self.sim.cfg.ardupilot.source} (ley de ArduPilot).")
+        else:
+            self.event.emit("info", f"Vehículo: {self.sim.p.name}. Ganancias SIMC "
+                                    f"recalculadas para este modelo.")
 
     # ============================================================ actitud
     @Slot()
@@ -447,6 +453,83 @@ class SimulationController(QObject):
         self.event.emit("info", "Modo actitud: el usuario manda ángulos y altura.")
 
     # ---- banco de rótula ---------------------------------------------------
+    # ======================================================= ley de actitud
+    LAW_NAMES = {"quadsim": "QuadSim (cascada tipo PX4)",
+                 "ardupilot": "ArduPilot (ArduCopter 4.7, Stabilize)"}
+
+    def attitude_law(self) -> str:
+        return self.sim.cfg.attitude_law
+
+    def set_attitude_law(self, law: str):
+        """Cambia la ley de control de actitud. Reinicia la corrida y conserva
+        las ganancias (las de ArduPilot se cargan con load_ardupilot_params
+        o use_ardupilot_gains)."""
+        if law not in ATTITUDE_LAWS:
+            self.event.emit("error", f"Ley de actitud desconocida: '{law}'.")
+            return
+        if law == self.sim.cfg.attitude_law:
+            return
+        self.pause()
+        self.sim.cfg.attitude_law = law
+        self.reset(keep_gains=True)
+        self.law_changed.emit(law)
+        if law == "ardupilot":
+            p = self.sim.cfg.ardupilot
+            self.event.emit("info", f"Ley de actitud: {self.LAW_NAMES[law]}, parámetros de "
+                                    f"{p.source}. Se conservan las ganancias de la tabla.")
+        else:
+            self.event.emit("info", f"Ley de actitud: {self.LAW_NAMES[law]}.")
+
+    def use_ardupilot_gains(self):
+        """Pone en la tabla las ganancias de los parámetros de ArduPilot cargados."""
+        for ax, d in self.sim.cfg.ardupilot.gains().items():
+            self.sim.att_ctrl.set_gains(ax, d["angle_kp"], d["rate_kp"], d["rate_ki"],
+                                        d["rate_kd"])
+        self.gains_changed.emit(self.gains())
+        self.event.emit("info", f"Ganancias de {self.sim.cfg.ardupilot.source} aplicadas.")
+
+    def load_ardupilot_params(self, path: str, match_rates: bool = True) -> bool:
+        """
+        Lee un .param de ArduPilot, pasa a la ley de ArduPilot y pone sus
+        ganancias. Con match_rates, el lazo de control toma SCHED_LOOP_RATE y
+        el primer filtro de cada eje del giroscopio pasa a ser el pasa-bajos
+        de INS_GYRO_FILTER (Butterworth de 2.º orden, el LowPassFilter2p de
+        ArduPilot).
+        """
+        try:
+            prm = ArduPilotParams.from_param_file(path)
+        except (OSError, ValueError) as e:
+            self.event.emit("error", f"No se pudo leer el archivo de parámetros: {e}")
+            return False
+        self.pause()
+        cfg = self.sim.cfg
+        cfg.ardupilot = prm
+        cfg.attitude_law = "ardupilot"
+        notes = []
+        if match_rates:
+            if abs(cfg.ctrl_hz - prm.loop_rate_hz) > 1e-9:
+                notes.append(f"lazo de control a {prm.loop_rate_hz:g} Hz (SCHED_LOOP_RATE)")
+                cfg.ctrl_hz = float(prm.loop_rate_hz)
+            if prm.gyro_filter_hz > 0 and prm.gyro_filter_hz < cfg.ctrl_hz / 2.0:
+                for ax in AXES:
+                    st = cfg.gyro_filters[ax]
+                    if not st:
+                        st.append(FilterStage())
+                    st[0] = FilterStage("butterworth", float(prm.gyro_filter_hz))
+                notes.append(f"pasa-bajos del giroscopio a {prm.gyro_filter_hz:g} Hz "
+                             f"(INS_GYRO_FILTER)")
+        alt = self.alt_gains()
+        self.reset(keep_gains=False)      # Simulation pone las ganancias del .param
+        self._set_alt_gains(alt)
+        self.filters_changed.emit()
+        self.law_changed.emit("ardupilot")
+        self.gains_changed.emit(self.gains())
+        n = len(prm.read_names)
+        self.event.emit("info", f"Parámetros de ArduPilot: {prm.source} ({n} leídos). Ley de "
+                                f"actitud de ArduCopter con sus ganancias"
+                                + (", " + " y ".join(notes) if notes else "") + ".")
+        return True
+
     def set_bench(self, on: bool):
         """Pone o quita el dron del banco de rótula. Reinicia la corrida
         (conserva las ganancias): sobre el banco solo hay modo actitud."""

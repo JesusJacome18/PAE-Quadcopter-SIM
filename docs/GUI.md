@@ -144,6 +144,19 @@ La sección muestra la inclinación y la tasa de crecimiento sin control,
 lo avisa. Sobre el banco no se pueden volar trayectorias. El modelo y sus
 supuestos están en [`BANCO_Y_ARDUCOPTER.md`](BANCO_Y_ARDUCOPTER.md).
 
+**Ley de control de actitud.** Debajo del banco, la sección «Ley de control de
+actitud» elige con qué estructura se usan las ganancias de la tabla: QuadSim
+(la cascada P → PID tipo PX4, con el mezclador por modelo) o ArduPilot (el
+controlador de ArduCopter 4.7 en Stabilize: modelo de comando, controlador raíz
+cuadrada, PID con sus filtros, mezclador y curva `MOT_THST_EXPO`). Cambiar de
+ley reinicia la corrida y conserva las ganancias. **Cargar .param…** lee un
+archivo de Mission Planner o QGroundControl, pasa a la ley de ArduPilot, pone
+sus ganancias (`ATC_ANG_*_P`, `ATC_RAT_*_P/I/D`), lleva el lazo a
+`SCHED_LOOP_RATE` y el primer filtro del giroscopio a `INS_GYRO_FILTER`.
+«Ganancias del .param» las vuelve a poner después de editarlas. La nota de la
+sección resume los parámetros cargados. Detalles en
+[`BANCO_Y_ARDUCOPTER.md`](BANCO_Y_ARDUCOPTER.md), sección 4.
+
 > Algo para observar: en la captura, tras el escalón de 15° en roll el ángulo
 > verdadero (blanco) se queda cerca de 14° mientras el estimado (cian) marca
 > 15°. El lazo cumple con lo que *cree* el estimador. En modo actitud, un dron
@@ -395,6 +408,7 @@ actual y la semilla 1:
 | 10 | Interferencia magnética: PID frente a MPC | Avanzado | 15 µT: error de rumbo de hasta 13.7°; RMSE del PID de 0.0145 a 0.133 m y del MPC de 0.0128 a 0.026 m |
 | 11 | Barrido rápido del pasa-bajos del giroscopio | Intermedio | 51 simulaciones en unos 45 s; mejor punto, pasa-bajos de 20 Hz con Q = 1.2 y J = 0.729, en el borde del rango |
 | 12 | Dron ArduCopter en el banco de rótula | Intermedio | 400 Hz, ganancias SIMC: subida 0.12 s y sobrepaso 20 % en el banco, 0 % en vuelo libre; sin motores llega al tope de 30° en 0.5 s; con las ganancias del `.param`, subida 0.36 s y sobrepaso 5 % |
+| 13 | El controlador de ArduPilot en el banco de rótula | Avanzado | ley de ArduPilot con el `.param` del dron: subida 0.25 s y sobrepaso 12 % en el banco; la ley de QuadSim con las mismas ganancias, 0.36 s y 5 %; en vuelo libre 0.41 s frente a 0.63 s |
 
 Los tiempos de cómputo (ms por paso, duración de la comparación o del
 barrido) son de la máquina de desarrollo y cambian con la computadora.
@@ -491,6 +505,8 @@ Las claves están en español sin tildes y todas son opcionales salvo
 | `config.vehiculo` | clave del catálogo `quadsim.vehicles` |
 | `config.modo` | `actitud` (referencias manuales) o `trayectoria`, que exige `trayectoria` y `controlador` |
 | `config.frecuencia_control_hz` | tasa del lazo de actitud, de 100 a 2000 Hz (500 por defecto; 400 es `SCHED_LOOP_RATE` de ArduCopter) |
+| `config.ley_actitud` | `"quadsim"` (por defecto) o `"ardupilot"` (ley de ArduCopter 4.7 en Stabilize) |
+| `config.parametros_ardupilot` | parámetros de la ley de ArduPilot: un objeto con nombres de ArduPilot como en un `.param` (`"ATC_RAT_RLL_P": 0.297`, `"MOT_THST_EXPO": 0.49`, …; lo que falta queda en el valor por defecto de 4.7) o la forma que guarda el programa. Con `"ganancias": "ardupilot"` la tabla toma las de estos parámetros; con `"simc"` y la ley de ArduPilot se ponen las SIMC. Ver el ejemplo 13 |
 | `config.banco` | banco de rótula: `activo`, `pivote_bajo_cm_mm` (0–200), `empuje_relativo` (0–1.5, fracción del peso), `friccion_viscosa` [N·m·s/rad], `friccion_coulomb` [N·m], `tope_inclinacion_deg` (5–89), `bloquear_guinada`, `alabeo_inicial_deg` y `cabeceo_inicial_deg` (±30). No se combina con `modo: trayectoria`; ver el ejemplo 12 |
 | `config.ganancias` | `"simc"` o, por eje, `angle_kp`, `rate_kp`, `rate_ki` y `rate_kd`; la clave `altura` guarda el lazo vertical (`pos_kp`, `vel_kp`, `vel_ki`, `vel_kd`) |
 | `config.estimador.tipo` | `ideal`, `madgwick`, `mahony` o `ekf`; `ganancias` usa los nombres del núcleo (`beta`; `kp`, `ki`; `gyro_noise`, `bias_walk`, `accel_noise`, `mag_noise`) |
@@ -596,7 +612,7 @@ corren en `QThread` sobre copias de la configuración (`gui/workers.py`).
 | `gui/dialogs.py` | bienvenida, galería de ejemplos, abrir y guardar escenario, atajos, Acerca de, tarjeta guía |
 | `gui/about.py` | nombre, versión, autores y filiación (una sola fuente) |
 | `gui/settings.py` | preferencias persistentes (QSettings) |
-| `examples/*.json` | los doce ejemplos |
+| `examples/*.json` | los trece ejemplos |
 | `gui/theme.py` | tokens de color y tipografía, hoja de estilos oscura y clara |
 | `gui/store.py`, `gui/workers.py`, `gui/registry.py`, `gui/analysis.py` | buffers, hilos, acceso tolerante a los registros, cálculos de gráficas |
 | `gui/pages/*.py` | las seis áreas de trabajo |

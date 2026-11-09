@@ -12,7 +12,7 @@
 <img src="https://img.shields.io/badge/python-3.10%2B-00e5ff?style=flat-square&logo=python&logoColor=white&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/GUI-PySide6%20%2B%20pyqtgraph-00e5ff?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/n%C3%BAcleo-solo%20numpy-00e5ff?style=flat-square&labelColor=05070f"/>
-<img src="https://img.shields.io/badge/pruebas-277%20pasando-7cff6b?style=flat-square&labelColor=05070f"/>
+<img src="https://img.shields.io/badge/pruebas-308%20pasando-7cff6b?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/f%C3%ADsica-RK4%20%40%201%20kHz-ff2bd6?style=flat-square&labelColor=05070f"/>
 
 <br/><br/>
@@ -88,8 +88,12 @@ neuronales que aprendan la dinámica del dron. Formato, columnas y verificación
 acelerador en la escala de salida de ArduPilot. En la página Actitud, el **banco de rótula** pone
 el dron sobre un pivote fijo bajo su centro de masa: solo gira, como en las pruebas de banco del
 dron real, con la gravedad que lo desestabiliza, la fricción de la rótula y su tope de
-inclinación. Modelo, supuestos y comparación con las ganancias del `.param` en
-[`docs/BANCO_Y_ARDUCOPTER.md`](docs/BANCO_Y_ARDUCOPTER.md).
+inclinación. La **ley de control de ArduPilot** reproduce el controlador de actitud de
+ArduCopter 4.7 en Stabilize (modelo de comando, controlador raíz cuadrada, PID con sus filtros,
+mezclador y curva `MOT_THST_EXPO`) y carga las ganancias directamente del `.param` del dron.
+Modelo, supuestos y resultados en [`docs/BANCO_Y_ARDUCOPTER.md`](docs/BANCO_Y_ARDUCOPTER.md). La
+herramienta aparte [`sim2real`](docs/SIM2REAL.md) lee un registro `.bin` del dron, repite el
+ensayo en QuadSim y compara.
 
 ### Primeros pasos dentro del programa
 
@@ -97,7 +101,7 @@ Nadie tiene que leer un manual para empezar. La primera vez que se abre, el prog
 **tour guiado** que recorre cada parte de la ventana paso a paso; se repite cuando se quiera con
 `F1`, con el botón **?** de la barra superior o desde **Ayuda → Tour guiado**, y `Mayús+F1`
 explica solo la página visible. La **galería de ejemplos** (`F2` o menú **Ejemplos**) trae
-**12 escenarios listos para cargar**, del primer vuelo con escalón de roll hasta la interferencia
+**13 escenarios listos para cargar**, del primer vuelo con escalón de roll hasta la interferencia
 magnética con PID frente a MPC, un barrido rápido del pasa-bajos y el dron ArduCopter en el banco
 de rótula; cada uno deja el simulador
 configurado, abre la página que corresponde y dice qué resultado esperar.
@@ -151,7 +155,7 @@ original. Los datos son coherentes entre sí: el acelerador de vuelo estacionari
 **4. Construir encima, verificando cada bloque.** Sobre ese núcleo se agregaron sensores con
 vibración real de las hélices, tres estimadores, cinco controladores de posición, perturbaciones,
 barridos automáticos y aprendizaje por refuerzo offline. Ningún resultado se reporta sin
-ejecutarlo: 277 pruebas automáticas y un script de verificación numérica respaldan las
+ejecutarlo: 308 pruebas automáticas y un script de verificación numérica respaldan las
 cifras del documento del modelo.
 
 **5. Pedir que alguien busque los errores.** En octubre de 2026 una revisión técnica
@@ -310,7 +314,7 @@ IMU es un supuesto pendiente de medir. La lista completa está en la sección 17
    versión publicada) o, para la última compilación, desde la pestaña **Actions** (artefacto del
    flujo *Ejecutable Windows*).
 2. Descomprímelo completo. Queda la carpeta `QuadSim/` con `QuadSim.exe` y la subcarpeta
-   `_internal/`, que trae Python, las bibliotecas, los 12 ejemplos y los modelos de RL. El
+   `_internal/`, que trae Python, las bibliotecas, los 13 ejemplos y los modelos de RL. El
    ejecutable necesita esa carpeta: no lo saques de ahí.
 3. Abre `QuadSim.exe`. La primera vez Windows puede mostrar «Windows protegió su PC»,
    porque el ejecutable no está firmado: «Más información» → «Ejecutar de todas formas». Los
@@ -332,8 +336,10 @@ versión `v*`). La misma autoprueba se puede correr en cualquier equipo:
 **Versiones.** QuadSim 1.1.0 agrega el dron ArduCopter con BeagleBone Blue en tres variantes
 (hélice 5046 o 6045 y dos rangos posibles del ESC), el banco de rótula, el número de palas por
 hélice con un filtro anti-alias de la IMU, la tasa del lazo de control en los escenarios (400 Hz
-para ArduCopter) y el ejemplo 12. Con el banco apagado y los vehículos de antes, la simulación da
-los mismos resultados que la 1.0.0. QuadSim 1.0.0 es la primera versión publicada con este nombre. Las versiones 3.x
+para ArduCopter), la ley de control de actitud de ArduPilot con lectura de `.param` y los
+ejemplos 12 y 13. Con el banco apagado, la ley de QuadSim y los vehículos de antes, la simulación
+da los mismos resultados que la 1.0.0. Fuera del programa, la herramienta `sim2real` compara
+registros `.bin` de ArduCopter con el simulador. QuadSim 1.0.0 es la primera versión publicada con este nombre. Las versiones 3.x
 eran las internas del desarrollo, con el nombre de trabajo QuadSIM-PRIMBIO. La 1.0.0 incluye el
 generador de datasets de vuelo para entrenar modelos dinámicos (*Simulación → Generar dataset de
 vuelo…*, [`docs/DATASET.md`](docs/DATASET.md)) y las correcciones del ejecutable de Windows de la
@@ -379,7 +385,7 @@ las pruebas necesitan además `pip install -r requirements-dev.txt` (scipy, matp
 
 ```bash
 # Windows: set PYTHONPATH=.      Linux/macOS: export PYTHONPATH=.
-python -m pytest -q                                   # 277 pruebas (+4 de tiempo de cómputo: PERF_TESTS=1)
+python -m pytest -q                                   # 308 pruebas (+4 de tiempo de cómputo: PERF_TESTS=1)
 python experiments/model_verification.py              # evidencia numérica del modelo (~1 min)
 python experiments/benchmark_controllers.py \
   --trajectories lemniscate circle lemniscate_fast step_waypoints \
@@ -404,17 +410,18 @@ PAE-Quadcopter-SIM/
 │   ├── estimators.py         Madgwick, Mahony, EKF, navegación
 │   ├── disturbances.py       viento de Dryden, ráfagas, EMI, carga útil, fallas
 │   ├── trajectories.py       7 generadores con derivadas analíticas
-│   ├── control/              PID de actitud, SIMC y 5 controladores de posición
+│   ├── control/              PID de actitud, SIMC, ley de ArduCopter y 5 controladores de posición
 │   ├── rl/                   entorno rápido, PPO en numpy, políticas
 │   ├── sweeps.py             motor de barridos de sensibilidad
 │   └── dataset.py            generador de datasets de vuelo (y dataset_verificacion.py)
 ├── gui/  ·  main.py          interfaz PySide6 (6 páginas, tour guiado, galería de ejemplos)
 ├── packaging/  ·  build_exe.bat   compilación del ejecutable de Windows (PyInstaller)
-├── examples/                 12 escenarios de ejemplo (.json)
+├── examples/                 13 escenarios de ejemplo (.json)
 ├── experiments/              banco de controladores, barridos, RL, dataset, verificación del modelo
 ├── models/                   pesos de las políticas RL entrenadas
 ├── docs/                     modelo matemático (PDF/LaTeX), guías, capturas y documentos de registro
-└── tests/                    281 pruebas automáticas (4 de tiempo de cómputo, opcionales)
+├── sim2real/                 herramienta aparte: compara un registro .bin de ArduCopter con QuadSim
+└── tests/                    312 pruebas automáticas (4 de tiempo de cómputo, opcionales)
 ```
 
 <img src="assets/divider.svg" width="100%"/>

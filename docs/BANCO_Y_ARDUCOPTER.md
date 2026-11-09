@@ -1,13 +1,15 @@
 # Dron ArduCopter y banco de rótula (QuadSim 1.1.0)
 
-La versión 1.1.0 agrega al catálogo el dron ArduCopter con BeagleBone Blue y un modo de
-simulación nuevo: el **banco de rótula**, en el que el dron solo puede girar alrededor de un
-pivote fijo. Los dos sirven para comparar el simulador con las pruebas de banco del dron real
-antes de pasar al vuelo libre.
+La versión 1.1.0 agrega al catálogo el dron ArduCopter con BeagleBone Blue, un modo de
+simulación nuevo, el **banco de rótula**, en el que el dron solo puede girar alrededor de un
+pivote fijo, y la **ley de control de actitud de ArduPilot**, para que las ganancias del `.param`
+signifiquen lo mismo en el simulador que en el dron. Los tres sirven para comparar el simulador
+con las pruebas de banco del dron real antes de pasar al vuelo libre. La comparación con un
+registro `.bin` la hace una herramienta aparte, descrita en [`SIM2REAL.md`](SIM2REAL.md).
 
 Las cifras de este documento se midieron con el código de esta versión. Las pruebas que las
-comprueban están en `tests/test_arducopter.py`, `tests/test_bench.py` y
-`tests/test_gui_bench.py`.
+comprueban están en `tests/test_arducopter.py`, `tests/test_bench.py`,
+`tests/test_gui_bench.py`, `tests/test_ardupilot_law.py` y `tests/test_gui_ardupilot.py`.
 
 ## 1. El vehículo
 
@@ -87,8 +89,9 @@ Los PID de ArduPilot y los de QuadSim tienen la misma estructura de unidades: el
 entra en rad/s y la salida es un momento normalizado. En un cuadricóptero X de ArduCopter, una
 salida de alabeo de 1 lleva dos motores al empuje máximo y dos a cero, lo mismo que u = 1 en
 QuadSim. La equivalencia es aproximada, porque ArduPilot linealiza el empuje con
-`MOT_THST_EXPO` y QuadSim no. Por eso la comparación sirve como referencia y no como traducción
-exacta, hasta que exista un «PID tipo ArduPilot» en el simulador.
+`MOT_THST_EXPO`, moldea la referencia con su modelo de comando y filtra el objetivo y la derivada
+del PID, y la cascada de QuadSim no. La tabla de esta sección usa la ley de QuadSim; con la ley de
+ArduPilot (sección 4) las ganancias del `.param` pasan tal cual.
 
 | Alabeo | SIMC, 5046, 400 Hz | SIMC, 6045, 400 Hz | Dron real (`.param`) |
 |---|---|---|---|
@@ -190,7 +193,102 @@ sim.run(3.0)
 print(sim.bench_tilt_deg)
 ```
 
-## 4. Lo que falta para comparar con el dron real
+## 4. Ley de control de actitud de ArduPilot
+
+`quadsim/control/ardupilot.py` reescribe en Python el controlador de actitud de ArduCopter 4.7 en
+modo Stabilize, a partir de su código fuente (etiqueta `Copter-4.7.2`; la rama `master` de
+noviembre de 2026 tiene el mismo algoritmo en estas funciones). Los nombres de los parámetros del
+`.param` del dron (`ATC_ACC_R_MAX`, `ATC_ANGLE_MAX`, `PILOT_TKO_ALT_M`, `LOIT_SPEED_MS`)
+corresponden a la serie 4.7. Se elige en la página Actitud, sección «Ley de control de actitud»,
+o con `SimConfig.attitude_law = "ardupilot"`.
+
+### La cadena
+
+| Etapa | Qué hace | Función de ArduPilot | Parámetros |
+|---|---|---|---|
+| Modelo de comando | Mueve una actitud objetivo hacia el ángulo pedido con aceleración y tirón limitados, y da su velocidad como prealimentación | `attitude_command_model`, `shape_pos_vel_accel` | `ATC_INPUT_TC`, `ATC_ACC_*_MAX`, `ATC_RATE_FF_ENAB`, `ATC_RATE_*_MAX` |
+| Error de actitud | Con cuaterniones: primero el vector de empuje, después el rumbo (limitado) | `thrust_heading_rotation_angles` | — |
+| Lazo de ángulo | P cerca del objetivo; √(2·a·e) lejos de él | `sqrt_controller` | `ATC_ANG_*_P`, `ATC_ACC_*_MAX` / 2 |
+| PID de tasa | Filtros del objetivo, del error y de la derivada; integrador con IMAX y congelado cuando el mezclador satura | `AC_PID::update_all` | `ATC_RAT_*_P/I/D/IMAX/FLTT/FLTE/FLTD/FF/D_FF/PDMX` |
+| Mezclador | Empujes normalizados con prioridad a roll y pitch, espacio mínimo para yaw | `AP_MotorsMatrix::output_armed_stabilizing` | `MOT_YAW_HEADROOM`, `ATC_THR_MIX_MAN`, `MOT_THST_HOVER` |
+| Curva de empuje | Empuje normalizado → salida al ESC | `Thrust_Linearization::thrust_to_actuator` | `MOT_THST_EXPO`, `MOT_SPIN_MIN/MAX`, `MOT_SPIN_ARM` |
+| Acelerador | Refuerzo por inclinación (Stabilize) | `get_throttle_boosted` | `ATC_ANGLE_BOOST` |
+
+La salida es la del ESC normalizada (0 = `MOT_PWM_MIN`, 1 = `MOT_PWM_MAX`), que es lo que QuadSim
+llama σ en los vehículos ArduCopter. Los factores del mezclador salen de la geometría del vehículo
+igual que en `add_motor_raw`; para el bastidor X dan exactamente la tabla de ArduCopter.
+
+**Orden del lazo.** En `ArduCopter/Copter.cpp` el PID de tasa corre antes que el modo de vuelo:
+usa la tasa objetivo calculada en el ciclo anterior. La ley de QuadSim lo reproduce, con un
+periodo de retardo (2.5 ms a 400 Hz).
+
+**Acelerador.** En el banco, el empuje fijo (fracción del peso) se convierte al acelerador de
+ArduPilot con el modelo del motor: el piloto que deja la palanca justo donde el motor da ese
+empuje. Con roll, pitch y yaw en cero, la curva `MOT_THST_EXPO` devuelve exactamente la salida del
+ESC de ese empuje (0.484 en el dron 5046, acelerador 0.298). En vuelo libre el lazo de altura de
+QuadSim sigue mandando el empuje.
+
+**Lo que no se reproduce:** el arranque de los motores (spool), el limitador de pendiente `SMAX` y
+los notch del PID (`NTF`, `NEF`), que el `.param` tiene en 0; la compensación por voltaje y por
+densidad del aire (`BATT_MONITOR` = 0 en el dron); el refuerzo de ganancias por cambios bruscos de
+acelerador (`ATC_THR_G_BOOST` = 0) y la pérdida de motor. El rumbo se manda como ángulo; en
+Stabilize el piloto manda tasa de rumbo, pero con la palanca centrada el resultado es el mismo.
+Roll y pitch siguen exactamente el camino de Stabilize.
+
+### Cómo se verificó
+
+No se pudo correr ArduPilot (SITL) en el entorno de desarrollo. La verificación es en tres
+partes:
+
+1. Cada función se escribió línea a línea desde el código de `Copter-4.7.2`, y las pruebas
+   comparan con valores calculados a mano de sus fórmulas: regiones del `sqrt_controller`, curva
+   de empuje y su inversa, factores del mezclador X, escalado cuando el mezclador satura, filtros
+   del PID, orden del lazo y estados de los motores apagados o en reposo.
+2. La herramienta `sim2real` alimenta el PID de tasa de QuadSim con `RATE.RDes` y `RATE.R` de un
+   registro y compara con `RATE.ROut` del firmware. Con el `.bin` del dron real esa comparación
+   verifica el PID contra ArduPilot sin depender del modelo físico.
+3. Con la ley de QuadSim la simulación no cambió: idéntica bit a bit a la de antes en cuatro casos
+   (PAE-X450 y ArduCopter, banco y vuelo libre).
+
+### Resultados
+
+Escalón de 10° en alabeo, prueba de escalón de la interfaz, dron 5046 a 400 Hz con el giroscopio
+filtrado a 75 Hz (`INS_GYRO_FILTER`). Es el ejemplo 13:
+
+| Ley | Ganancias | Dónde | Subida (10–90 %) | Sobrepaso |
+|---|---|---|---|---|
+| ArduPilot | `.param` | banco | 0.25 s | 12 % |
+| QuadSim | `.param` | banco | 0.36 s | 5 % |
+| ArduPilot | SIMC | banco | 0.16 s | 16 % |
+| ArduPilot | `.param` | vuelo libre | 0.41 s | 0 % |
+| QuadSim | `.param` | vuelo libre | 0.63 s | 0 % |
+
+Con las ganancias del dron (Kp de ángulo 4.5) la prealimentación del modelo de comando hace que
+ArduPilot suba más rápido que la cascada de QuadSim. Con las SIMC (Kp de ángulo 7.9) pasa lo
+contrario: el que pone el ritmo es el modelo de comando, con `ATC_INPUT_TC` = 0.1 s
+(`tests/test_ardupilot_law.py` lo comprueba en vuelo libre). En el banco las dos leyes se pasan
+de la referencia, porque la gravedad empuja hacia el lado de la inclinación.
+
+### Uso
+
+En la interfaz: página Actitud → «Ley de control de actitud» → **Cargar .param…**. El programa
+lee el archivo de Mission Planner o de QGroundControl, pasa a la ley de ArduPilot, pone sus
+ganancias en la tabla, lleva el lazo a `SCHED_LOOP_RATE` y el primer filtro del giroscopio a
+`INS_GYRO_FILTER`. «Ganancias del .param» vuelve a ponerlas después de editarlas. Los escenarios
+guardan la ley (`ley_actitud`) y los parámetros (`parametros_ardupilot`).
+
+```python
+from quadsim.control.ardupilot import ArduPilotParams
+from quadsim.simulator import SimConfig, Simulation
+from quadsim.bench import BenchConfig
+
+prm = ArduPilotParams.from_param_file("PARAMDRON.param")
+sim = Simulation(SimConfig(vehicle="arducopter_bbblue", ctrl_hz=prm.loop_rate_hz,
+                           attitude_law="ardupilot", ardupilot=prm,
+                           bench=BenchConfig(enabled=True)))
+```
+
+## 5. Lo que falta para comparar con el dron real
 
 - **Registro `.bin` de una prueba en el banco.** Da el `RCOU` de estacionario (rango del ESC), las
   respuestas de actitud para ajustar el arrastre, el amortiguamiento y la fricción de la rótula,
@@ -201,5 +299,8 @@ print(sim.bench_tilt_deg)
 - **Motor:** modelo real o una prueba de empuje de un motor.
 - **Ganancias SIMC para el banco:** calcularlas con la inercia alrededor del pivote y la rigidez
   de la gravedad, para que el banco no castigue a las de vuelo libre.
-- **PID tipo ArduPilot** (`AC_PID`, filtros FLTT/FLTE/FLTD, `sqrt_controller`, expo de empuje),
-  para que las ganancias pasen una a una al dron.
+- **`LOG_BITMASK` con `ATTITUDE_FAST`.** El `.param` del 29 de octubre tiene 180222: sin el bit 0,
+  ArduCopter 4.7 registra ANG, RATE y los PID a 10 Hz y la comparación con el simulador no sirve.
+  Con 180223 quedan a la tasa del lazo (400 Hz). Ver [`SIM2REAL.md`](SIM2REAL.md).
+- **Versión exacta del firmware** (Mission Planner la muestra al conectar): la ley de ArduPilot
+  sigue a la 4.7.2.

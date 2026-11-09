@@ -15,8 +15,8 @@ import math
 
 import numpy as np
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QCheckBox, QFrame, QGridLayout, QHBoxLayout, QHeaderView,
-                               QLabel, QScrollArea, QSizePolicy, QTableWidget,
+from PySide6.QtWidgets import (QCheckBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout,
+                               QHeaderView, QLabel, QScrollArea, QSizePolicy, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
 from quadsim.control.attitude import AXES
@@ -116,6 +116,9 @@ class AttitudePage(Page):
 
         # banco de rótula
         self._build_bench(col)
+
+        # ley de control de actitud
+        self._build_law(col)
 
         # ganancias
         self.btn_simc = button("Sugeridas SIMC", "", "Recalcula las ganancias con las reglas "
@@ -321,6 +324,70 @@ class AttitudePage(Page):
         ctl.vehicle_changed.connect(lambda *_: self._update_simc_note())
         theme.changed.connect(self._retheme)
         self._update_simc_note()
+
+    # ------------------------------------------------- ley de control
+    def _build_law(self, col):
+        sec = Section("Ley de control de actitud",
+                      "Con qué estructura se usan las ganancias de la tabla. ArduPilot "
+                      "reproduce el controlador de ArduCopter 4.7 en Stabilize: modelo de "
+                      "comando, controlador raíz cuadrada, PID con sus filtros, mezclador y "
+                      "curva MOT_THST_EXPO.")
+        self.law = Segmented([("QuadSim", "quadsim"), ("ArduPilot", "ardupilot")],
+                             self.ctl.attitude_law(),
+                             tip="QuadSim: cascada P → PID tipo PX4 con el mezclador por "
+                                 "modelo. ArduPilot: la ley del firmware del dron real.")
+        self.law.changed.connect(self.ctl.set_attitude_law)
+        lrow = QHBoxLayout()
+        lrow.addWidget(self.law)
+        lrow.addStretch(1)
+        sec.body.addLayout(lrow)
+        row = QHBoxLayout()
+        self.btn_param = button("Cargar .param…", "", "Lee un archivo de parámetros de "
+                                "Mission Planner o QGroundControl: pasa a la ley de "
+                                "ArduPilot, pone sus ganancias, la tasa del lazo "
+                                "(SCHED_LOOP_RATE) y el filtro del giroscopio "
+                                "(INS_GYRO_FILTER).", slot=self._load_param)
+        self.btn_ap_gains = button("Ganancias del .param", "ghost",
+                                   "Vuelve a poner en la tabla las ganancias de los "
+                                   "parámetros de ArduPilot cargados.",
+                                   slot=self.ctl.use_ardupilot_gains)
+        row.addWidget(self.btn_param)
+        row.addWidget(self.btn_ap_gains)
+        row.addStretch(1)
+        sec.body.addLayout(row)
+        self.law_note = label("", "Faint", wrap=True)
+        sec.body.addWidget(self.law_note)
+        col.addWidget(sec)
+        self.sec_law = sec
+        self.ctl.law_changed.connect(self._sync_law)
+        self.ctl.reset_done.connect(self._sync_law)
+        self._sync_law()
+
+    def _load_param(self, *_):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Parámetros de ArduPilot", "",
+            "Parámetros de ArduPilot (*.param *.params *.parm);;Todos los archivos (*)")
+        if path:
+            self.ctl.load_ardupilot_params(path)
+
+    def _sync_law(self, *_):
+        law = self.ctl.attitude_law()
+        self.law.blockSignals(True)
+        self.law.set_value(law)
+        self.law.blockSignals(False)
+        p = self.ctl.sim.cfg.ardupilot
+        self.btn_ap_gains.setEnabled(law == "ardupilot")
+        if law == "ardupilot":
+            self.law_note.setText(
+                f"Parámetros: {p.source}. ATC_INPUT_TC {p.input_tc:g} s, ATC_ACC_R_MAX "
+                f"{p.accel_max_degss['roll']:g} °/s², filtros de tasa FLTT/FLTD "
+                f"{p.rate['roll'].fltt:g}/{p.rate['roll'].fltd:g} Hz, MOT_THST_EXPO "
+                f"{p.thst_expo:g}, MOT_SPIN_MIN/MAX {p.spin_min:g}/{p.spin_max:g}. La tabla "
+                f"de ganancias son ATC_ANG_*_P y ATC_RAT_*_P/I/D.")
+        else:
+            self.law_note.setText("Ganancias en unidades PX4: momento normalizado u ∈ "
+                                  "[−1, 1]; el mezclador reparte el momento con el modelo "
+                                  "del vehículo.")
 
     # ------------------------------------------------------- banco de rótula
     def _build_bench(self, col):

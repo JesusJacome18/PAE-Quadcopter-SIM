@@ -23,8 +23,11 @@ otra cosa):
         "banco": {"activo", "pivote_bajo_cm_mm", "empuje_relativo", "friccion_viscosa",
                   "friccion_coulomb", "tope_inclinacion_deg", "bloquear_guinada",
                   "alabeo_inicial_deg", "cabeceo_inicial_deg"},
+        "ley_actitud": "quadsim" | "ardupilot",
+        "parametros_ardupilot": {NOMBRE_DE_ARDUPILOT: valor, ...} (como en un .param,
+                  p. ej. "ATC_RAT_RLL_P": 0.297) o la forma que guarda el programa,
         "referencias": {"roll", "pitch", "yaw", "alt"},
-        "ganancias": "simc" | {eje: {angle_kp, rate_kp, rate_ki, rate_kd},
+        "ganancias": "simc" | "ardupilot" | {eje: {angle_kp, rate_kp, rate_ki, rate_kd},
                                "altura": {pos_kp, vel_kp, vel_ki, vel_kd}},
         "estimador": {"tipo", "ganancias", "usar_magnetometro", "compensar_aceleracion"},
         "sensores": {"vibracion", "vibracion_giro_dps"},
@@ -57,11 +60,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QObject
 
+from quadsim.control.ardupilot import ArduPilotParams
 from quadsim.control.attitude import AXES
+from quadsim.control.tuning import suggest_attitude_gains
 from quadsim.disturbances import (DisturbanceConfig, MagEMIConfig, MotorFault, PayloadEvent,
                                   WindConfig)
-from quadsim.simulator import FilterStage
-from quadsim.vehicles import VEHICLES
+from quadsim.simulator import ATTITUDE_LAWS, FilterStage
+from quadsim.vehicles import VEHICLES, get_vehicle
 
 from . import registry
 from .about import APP_NAME, APP_VERSION
@@ -298,7 +303,8 @@ def _build_config(scen: dict):
     warns: List[str] = []
     known = {"vehiculo", "semilla", "altura_inicial", "modo", "referencias", "ganancias",
              "estimador", "sensores", "filtros", "trayectoria", "controlador",
-             "perturbaciones", "frecuencia_control_hz", "banco"}
+             "perturbaciones", "frecuencia_control_hz", "banco", "ley_actitud",
+             "parametros_ardupilot"}
     for k in c:
         if k not in known:
             warns.append(f"Clave desconocida en config: '{k}' (se ignora).")
@@ -326,6 +332,25 @@ def _build_config(scen: dict):
             setattr(cfg.bench, attr, _num(v, f"banco.{k}", *lim) * scale)
         else:
             warns.append(f"Clave desconocida en banco: '{k}' (se ignora).")
+
+    # ---- ley de actitud y parametros de ArduPilot
+    law = c.get("ley_actitud", "quadsim")
+    if law not in ATTITUDE_LAWS:
+        raise ScenarioError(f"'ley_actitud' desconocida: '{law}'. Opciones: "
+                            f"{', '.join(ATTITUDE_LAWS)}.")
+    cfg.attitude_law = law
+    pa = c.get("parametros_ardupilot")
+    if pa is not None:
+        pa = _dict(pa, "config.parametros_ardupilot")
+        try:
+            if pa and all(isinstance(k, str) and k.isupper() for k in pa):
+                cfg.ardupilot = ArduPilotParams.from_dict(
+                    {k: _num(v, f"parametros_ardupilot.{k}") for k, v in pa.items()},
+                    source="parámetros del escenario")
+            else:
+                cfg.ardupilot = ArduPilotParams.from_saved(pa)
+        except (TypeError, ValueError, KeyError) as e:
+            raise ScenarioError(f"'parametros_ardupilot' no es válido: {e}") from e
 
     # ---- estimador
     e = _dict(c.get("estimador"), "config.estimador")
@@ -451,8 +476,19 @@ def _build_config(scen: dict):
         missing = [ax for ax in AXES if ax not in gains]
         if missing and gains:
             warns.append(f"Ganancias sin definir para {', '.join(missing)}: quedan las SIMC.")
-    elif g not in (None, "simc"):
-        raise ScenarioError("'ganancias' debe ser \"simc\" o un objeto por eje.")
+    elif g == "ardupilot":
+        gains = cfg.ardupilot.gains()
+    elif g in (None, "simc"):
+        if cfg.attitude_law == "ardupilot":
+            # con la ley de ArduPilot la simulacion arranca con las ganancias
+            # de sus parametros: "simc" se pide explicitamente
+            sg = suggest_attitude_gains(get_vehicle(cfg.vehicle), 1.0 / cfg.ctrl_hz)
+            gains = {ax: {"angle_kp": sg[ax]["angle"]["kp"], "rate_kp": sg[ax]["rate"]["kp"],
+                          "rate_ki": sg[ax]["rate"]["ki"], "rate_kd": sg[ax]["rate"]["kd"]}
+                     for ax in AXES}
+    else:
+        raise ScenarioError("'ganancias' debe ser \"simc\", \"ardupilot\" o un objeto por "
+                            "eje.")
 
     # ---- referencias
     r = _dict(c.get("referencias"), "config.referencias")
@@ -562,6 +598,9 @@ def capture(win) -> dict:
         "frecuencia_control_hz": float(cfg.ctrl_hz),
         "modo": "trayectoria" if fly else "actitud",
         "banco": _capture_bench(cfg.bench) if cfg.bench.enabled else None,
+        "ley_actitud": cfg.attitude_law if cfg.attitude_law != "quadsim" else None,
+        "parametros_ardupilot": (cfg.ardupilot.to_dict() if cfg.attitude_law != "quadsim"
+                                 else None),
         "referencias": {k: float(v) for k, v in sp.items()},
         "ganancias": dict(copy.deepcopy(ctl.gains()), altura=ctl.alt_gains()),
         "estimador": {"tipo": cfg.estimator, "ganancias": dict(sim.estimator.gains()),
@@ -796,8 +835,11 @@ def _describe(scen: dict) -> List[Tuple[str, str]]:
         out.append(("Modo", "Actitud (referencias manuales)"))
     if c.get("frecuencia_control_hz") not in (None, 500, 500.0):
         out.append(("Lazo de control", f"{float(c['frecuencia_control_hz']):g} Hz"))
+    if c.get("ley_actitud") == "ardupilot":
+        out.append(("Ley de actitud", "ArduPilot (ArduCopter 4.7, Stabilize)"))
     g = c.get("ganancias", "simc")
     out.append(("Ganancias PID", "SIMC del vehículo" if g in (None, "simc") else
+                "las de los parámetros de ArduPilot" if g == "ardupilot" else
                 "definidas en el escenario"))
     p = c.get("perturbaciones", {}) or {}
     dist = []
