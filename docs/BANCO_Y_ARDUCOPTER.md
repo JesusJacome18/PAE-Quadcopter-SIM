@@ -196,8 +196,9 @@ print(sim.bench_tilt_deg)
 ## 4. Ley de control de actitud de ArduPilot
 
 `quadsim/control/ardupilot.py` reescribe en Python el controlador de actitud de ArduCopter 4.7 en
-modo Stabilize, a partir de su código fuente (etiqueta `Copter-4.7.2`; la rama `master` de
-noviembre de 2026 tiene el mismo algoritmo en estas funciones). Los nombres de los parámetros del
+modo Stabilize, a partir de su código fuente (etiqueta `Copter-4.7.2`). El dron dice tener la
+4.7.1, cuyas funciones de control son idénticas a las de la 4.7.2 (solo cambia un comentario), y la
+rama `master` de noviembre de 2026 tiene el mismo algoritmo. Los nombres de los parámetros del
 `.param` del dron (`ATC_ACC_R_MAX`, `ATC_ANGLE_MAX`, `PILOT_TKO_ALT_M`, `LOIT_SPEED_MS`)
 corresponden a la serie 4.7. Se elige en la página Actitud, sección «Ley de control de actitud»,
 o con `SimConfig.attitude_law = "ardupilot"`.
@@ -302,5 +303,5 @@ sim = Simulation(SimConfig(vehicle="arducopter_bbblue", ctrl_hz=prm.loop_rate_hz
 - **`LOG_BITMASK` con `ATTITUDE_FAST`.** El `.param` del 29 de octubre tiene 180222: sin el bit 0,
   ArduCopter 4.7 registra ANG, RATE y los PID a 10 Hz y la comparación con el simulador no sirve.
   Con 180223 quedan a la tasa del lazo (400 Hz). Ver [`SIM2REAL.md`](SIM2REAL.md).
-- **Versión exacta del firmware** (Mission Planner la muestra al conectar): la ley de ArduPilot
-  sigue a la 4.7.2.
+- **Versión exacta del firmware** (Mission Planner la muestra al conectar): el compañero dijo
+  «V4.71»; la ley de ArduPilot sigue a la 4.7.2, igual a la 4.7.1 en el control.

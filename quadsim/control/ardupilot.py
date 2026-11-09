@@ -2,10 +2,10 @@
 quadsim.control.ardupilot
 =========================
 Ley de control de actitud de ArduCopter 4.7 (modo Stabilize), reescrita en
-Python a partir del codigo fuente de ArduPilot (etiqueta Copter-4.7.2;
-la rama master de noviembre de 2026 da el mismo algoritmo en estas
-funciones). Sirve para que las ganancias de un `.param` signifiquen lo mismo
-en el simulador que en el dron.
+Python a partir del codigo fuente de ArduPilot (etiqueta Copter-4.7.2,
+identica a Copter-4.7.1 en estas funciones; la rama master de noviembre de
+2026 da el mismo algoritmo). Sirve para que las ganancias de un `.param`
+signifiquen lo mismo en el simulador que en el dron.
 
 Cadena (archivo de ArduPilot entre corchetes):
 
