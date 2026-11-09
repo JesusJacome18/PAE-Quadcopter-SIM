@@ -15,8 +15,8 @@ import math
 
 import numpy as np
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QCheckBox, QFrame, QGridLayout, QHBoxLayout, QHeaderView,
-                               QLabel, QScrollArea, QSizePolicy, QTableWidget,
+from PySide6.QtWidgets import (QCheckBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout,
+                               QHeaderView, QLabel, QScrollArea, QSizePolicy, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
 from quadsim.control.attitude import AXES
@@ -113,6 +113,12 @@ class AttitudePage(Page):
             sec.body.addWidget(w)
         col.addWidget(sec)
         self.sec_refs = sec
+
+        # banco de rótula
+        self._build_bench(col)
+
+        # ley de control de actitud
+        self._build_law(col)
 
         # ganancias
         self.btn_simc = button("Sugeridas SIMC", "", "Recalcula las ganancias con las reglas "
@@ -319,6 +325,180 @@ class AttitudePage(Page):
         theme.changed.connect(self._retheme)
         self._update_simc_note()
 
+    # ------------------------------------------------- ley de control
+    def _build_law(self, col):
+        sec = Section("Ley de control de actitud",
+                      "Con qué estructura se usan las ganancias de la tabla. ArduPilot "
+                      "reproduce el controlador de ArduCopter 4.7 en Stabilize: modelo de "
+                      "comando, controlador raíz cuadrada, PID con sus filtros, mezclador y "
+                      "curva MOT_THST_EXPO.")
+        self.law = Segmented([("QuadSim", "quadsim"), ("ArduPilot", "ardupilot")],
+                             self.ctl.attitude_law(),
+                             tip="QuadSim: cascada P → PID tipo PX4 con el mezclador por "
+                                 "modelo. ArduPilot: la ley del firmware del dron real.")
+        self.law.changed.connect(self.ctl.set_attitude_law)
+        lrow = QHBoxLayout()
+        lrow.addWidget(self.law)
+        lrow.addStretch(1)
+        sec.body.addLayout(lrow)
+        row = QHBoxLayout()
+        self.btn_param = button("Cargar .param…", "", "Lee un archivo de parámetros de "
+                                "Mission Planner o QGroundControl: pasa a la ley de "
+                                "ArduPilot, pone sus ganancias, la tasa del lazo "
+                                "(SCHED_LOOP_RATE) y el filtro del giroscopio "
+                                "(INS_GYRO_FILTER).", slot=self._load_param)
+        self.btn_ap_gains = button("Ganancias del .param", "ghost",
+                                   "Vuelve a poner en la tabla las ganancias de los "
+                                   "parámetros de ArduPilot cargados.",
+                                   slot=self.ctl.use_ardupilot_gains)
+        row.addWidget(self.btn_param)
+        row.addWidget(self.btn_ap_gains)
+        row.addStretch(1)
+        sec.body.addLayout(row)
+        self.law_note = label("", "Faint", wrap=True)
+        sec.body.addWidget(self.law_note)
+        col.addWidget(sec)
+        self.sec_law = sec
+        self.ctl.law_changed.connect(self._sync_law)
+        self.ctl.reset_done.connect(self._sync_law)
+        self._sync_law()
+
+    def _load_param(self, *_):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Parámetros de ArduPilot", "",
+            "Parámetros de ArduPilot (*.param *.params *.parm);;Todos los archivos (*)")
+        if path:
+            self.ctl.load_ardupilot_params(path)
+
+    def _sync_law(self, *_):
+        law = self.ctl.attitude_law()
+        self.law.blockSignals(True)
+        self.law.set_value(law)
+        self.law.blockSignals(False)
+        p = self.ctl.sim.cfg.ardupilot
+        self.btn_ap_gains.setEnabled(law == "ardupilot")
+        if law == "ardupilot":
+            self.law_note.setText(
+                f"Parámetros: {p.source}. ATC_INPUT_TC {p.input_tc:g} s, ATC_ACC_R_MAX "
+                f"{p.accel_max_degss['roll']:g} °/s², filtros de tasa FLTT/FLTD "
+                f"{p.rate['roll'].fltt:g}/{p.rate['roll'].fltd:g} Hz, MOT_THST_EXPO "
+                f"{p.thst_expo:g}, MOT_SPIN_MIN/MAX {p.spin_min:g}/{p.spin_max:g}. La tabla "
+                f"de ganancias son ATC_ANG_*_P y ATC_RAT_*_P/I/D.")
+        else:
+            self.law_note.setText("Ganancias en unidades PX4: momento normalizado u ∈ "
+                                  "[−1, 1]; el mezclador reparte el momento con el modelo "
+                                  "del vehículo.")
+
+    # ------------------------------------------------------- banco de rótula
+    def _build_bench(self, col):
+        b = self.ctl.sim.cfg.bench
+        sec = Section("Banco de rótula",
+                      "El dron gira alrededor de un pivote fijo, sin trasladarse. Con el "
+                      "pivote bajo el centro de masa es un péndulo invertido. No hay lazo "
+                      "de altura: el empuje es fijo, como el acelerador manual de "
+                      "Stabilize.")
+        self.chk_bench = QCheckBox("Dron sobre el banco")
+        self.chk_bench.setToolTip("Reinicia la corrida con el dron sobre la rótula "
+                                  "(conserva las ganancias). Sobre el banco no se pueden "
+                                  "seguir trayectorias.")
+        self.chk_bench.setChecked(b.enabled)
+        sec.body.addWidget(self.chk_bench)
+        fg = FieldGrid()
+        self.b_thrust = fg.add("Empuje", spin(0, 1.5, b.thrust_ratio, 0.05, 2, width=90),
+                               "× peso", "Empuje colectivo como fracción del peso. 1 = "
+                               "empuje de vuelo estacionario; 0 = motores apagados. Actúa "
+                               "en vivo.")
+        self.b_pivot = fg.add("Pivote bajo el CM", spin(0, 200, b.pivot_below_cm_m * 1000,
+                                                         0.5, 1, width=90), "mm",
+                              "Distancia del pivote de la rótula por debajo del centro de "
+                              "masa, sobre el eje z del cuerpo. Dron ArduCopter: 40.7 mm "
+                              "(medido).")
+        self.b_visc = fg.add("Fricción viscosa", spin(0, 0.05, b.viscous_Nms, 0.0001, 4,
+                                                      width=90), "N·m·s",
+                             "Par de fricción proporcional a la velocidad angular "
+                             "[N·m/(rad/s)]. Supuesto: falta medirlo en el banco.")
+        self.b_coul = fg.add("Fricción de Coulomb", spin(0, 0.1, b.coulomb_Nm, 0.0005, 4,
+                                                         width=90), "N·m",
+                             "Par de fricción seca de la rótula. Supuesto: falta medirlo.")
+        self.b_lim = fg.add("Tope de inclinación", spin(5, 89, b.tilt_limit_deg, 1, 0,
+                                                        width=90), "°",
+                            "Ángulo máximo que permite la rótula respecto a la vertical. "
+                            "Supuesto: falta medirlo.")
+        self.b_init = fg.add("Alabeo inicial", spin(-30, 30, b.initial_roll_deg, 0.5, 1,
+                                                    width=90), "°",
+                             "Inclinación con la que arranca la corrida (se aplica al "
+                             "reiniciar).")
+        sec.body.addLayout(fg)
+        self.chk_lock_yaw = QCheckBox("Bloquear guiñada")
+        self.chk_lock_yaw.setToolTip("Rótula con el giro vertical trabado (como una "
+                                     "cruceta): el rumbo no puede cambiar.")
+        self.chk_lock_yaw.setChecked(b.lock_yaw)
+        sec.body.addWidget(self.chk_lock_yaw)
+        row = QHBoxLayout()
+        self.r_tilt = Readout("Inclinación", "°", tip="Ángulo entre el eje z del cuerpo y la "
+                                                     "vertical.")
+        self.r_lambda = Readout("Crecimiento sin control", "1/s",
+                                tip="λ = √(m g d / J_pivote): sin control, la inclinación "
+                                    "crece como e^(λ t). Es la medida de lo inestable que es "
+                                    "el banco.")
+        row.addWidget(self.r_tilt)
+        row.addWidget(self.r_lambda)
+        sec.body.addLayout(row)
+        self.bench_note = label("", "Faint", wrap=True)
+        sec.body.addWidget(self.bench_note)
+        col.addWidget(sec)
+        self.sec_bench = sec
+
+        self.chk_bench.toggled.connect(lambda v: self.ctl.set_bench(bool(v)))
+        self.b_thrust.valueChanged.connect(self.ctl.set_bench_thrust)
+        self.b_pivot.valueChanged.connect(
+            lambda v: self.ctl.set_bench_params(pivot_below_cm_m=v / 1000.0))
+        self.b_visc.valueChanged.connect(lambda v: self.ctl.set_bench_params(viscous_Nms=v))
+        self.b_coul.valueChanged.connect(lambda v: self.ctl.set_bench_params(coulomb_Nm=v))
+        self.b_lim.valueChanged.connect(lambda v: self.ctl.set_bench_params(tilt_limit_deg=v))
+        self.b_init.valueChanged.connect(
+            lambda v: self.ctl.set_bench_params(initial_roll_deg=v))
+        self.chk_lock_yaw.toggled.connect(
+            lambda v: self.ctl.set_bench_params(lock_yaw=bool(v)))
+        self.ctl.bench_changed.connect(self._sync_bench)
+        self.ctl.reset_done.connect(self._sync_bench)
+        self.ctl.vehicle_changed.connect(lambda *_: self._sync_bench())
+        self._sync_bench()
+
+    def _sync_bench(self, *_):
+        """Lleva los campos del banco a la configuración vigente (también al
+        cargar un escenario) y bloquea la altura si el dron está en el banco."""
+        b = self.ctl.sim.cfg.bench
+        for w, v in ((self.chk_bench, b.enabled), (self.chk_lock_yaw, b.lock_yaw)):
+            w.blockSignals(True)
+            w.setChecked(bool(v))
+            w.blockSignals(False)
+        for w, v in ((self.b_thrust, b.thrust_ratio), (self.b_pivot, b.pivot_below_cm_m * 1000),
+                     (self.b_visc, b.viscous_Nms), (self.b_coul, b.coulomb_Nm),
+                     (self.b_lim, b.tilt_limit_deg), (self.b_init, b.initial_roll_deg)):
+            w.blockSignals(True)
+            w.setValue(v)
+            w.blockSignals(False)
+        p = self.ctl.sim.nominal
+        lam = b.growth_rate(p, "roll")
+        k = b.gravity_stiffness(p)
+        self.r_lambda.set(f"{lam:.1f}" if lam > 0 else "0")
+        if lam > 0:
+            self.bench_note.setText(
+                f"Con {p.name.split(' (')[0]}: m g d = {k:.3f} N·m/rad, J_pivote = "
+                f"{b.pivot_inertia(p)[0] * 1e3:.2f} × 10⁻³ kg·m² en roll. Sin control la "
+                f"inclinación se duplica cada {math.log(2) / lam * 1000:.0f} ms.")
+        else:
+            self.bench_note.setText("Pivote en el centro de masa o por encima: el banco "
+                                    "no es inestable por gravedad.")
+        on = b.enabled
+        self.cmd["alt"].setEnabled(not on)
+        self.cmd["alt"].setToolTip("En el banco de rótula la altura está fija." if on else
+                                   "Altura ordenada sobre el suelo. Con 0 m el dron aterriza "
+                                   "y se desarma.")
+        if not on:
+            self.r_tilt.set("—")
+
     # ------------------------------------------------------------- acciones
     def _level(self):
         self.cmd["roll"].setValue(0.0, emit=True)
@@ -511,5 +691,9 @@ class AttitudePage(Page):
         self.motors.set_values(tel["sigma"], tel["rpm"], self.ctl.sim.nominal.hover_throttle,
                                self.ctl.sim.dist.env.motor_efficiency)
         self.r_thrust.set(f"{tel['thrust']:.1f}")
+        if tel.get("bench"):
+            lim = self.ctl.sim.cfg.bench.tilt_limit_deg
+            ti = tel.get("tilt_deg", 0.0)
+            self.r_tilt.set(f"{ti:.1f}", "caution" if ti >= lim - 0.5 else None)
         k = tel["mixer_k_rp"]
         self.r_krp.set(f"{k:.2f}", "caution" if k < 0.999 else None)

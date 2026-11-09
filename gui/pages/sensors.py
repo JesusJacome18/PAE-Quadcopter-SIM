@@ -294,6 +294,16 @@ class SensorsPage(Page):
         if not f or f <= 1:
             self.ctl.event.emit("warn", "No hay vibración medida (¿motores apagados?).")
             return
+        nyq = self.ctl.sim.cfg.ctrl_hz / 2.0
+        if f >= 0.98 * nyq:
+            # hélices tripala a ~1000 rad/s: 480 Hz, por encima de Nyquist. Un
+            # notch en el lazo de control no puede ponerse ahí; lo que la quita
+            # es el filtro anti-alias de la IMU (página Modelo).
+            self.ctl.event.emit("warn", f"El paso de pala está en {f:.0f} Hz, por encima de "
+                                        f"Nyquist ({nyq:g} Hz): un notch a la tasa de control "
+                                        f"no puede centrarse ahí. La atenúa el filtro "
+                                        f"anti-alias de la IMU (ver la página Modelo).")
+            return
         ed = self.stage[1]
         ed.type.blockSignals(True)
         ed.type.setCurrentIndex([d for _, d in FILTER_TYPES].index("notch"))
@@ -309,6 +319,13 @@ class SensorsPage(Page):
         self.ctl.event.emit("info", f"Notch centrado en {f:.1f} Hz (Q = 4).")
 
     def _bode(self):
+        fs = self.ctl.sim.cfg.ctrl_hz
+        if abs(self.freqs[-1] - 0.98 * fs / 2) > 1e-6:
+            # la tasa de control cambió (escenario a 400 Hz): eje hasta Nyquist
+            self.freqs = np.geomspace(1.0, 0.98 * fs / 2, 260)
+            self.g_f.setXRange(0, fs / 2, padding=0)
+            for pl in (self.b_mag, self.b_ph):
+                log_ticks(pl, 1.0, self.freqs[-1])
         chain = self.ctl.filter_chain(self.axis)
         mag, ph = chain_response(chain, self.freqs)
         self.cb_mag.setData(self.freqs, mag)

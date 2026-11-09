@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -57,15 +59,15 @@ jobs:
 
       - name: Empaquetar
         shell: pwsh
-        run: Compress-Archive -Path dist\QuadSim -DestinationPath QuadSim-1.0.0-win64.zip
+        run: Compress-Archive -Path dist\QuadSim -DestinationPath QuadSim-1.1.0-win64.zip
 
       - uses: actions/upload-artifact@v4
         with:
-          name: QuadSim-1.0.0-win64
-          path: QuadSim-1.0.0-win64.zip
+          name: QuadSim-1.1.0-win64
+          path: QuadSim-1.1.0-win64.zip
 
       - name: Publicar en Releases (solo etiquetas v*)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: QuadSim-1.0.0-win64.zip
+          files: QuadSim-1.1.0-win64.zip

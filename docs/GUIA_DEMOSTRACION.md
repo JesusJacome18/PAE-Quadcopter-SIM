@@ -26,7 +26,7 @@ Las siguientes veces basta con `.venv\Scripts\activate` y `python main.py`
 | Barra izquierda / `Ctrl+1…6` | las seis pestañas |
 | `Ctrl+E` | exporta la corrida a CSV |
 | `F1` / botón **?** | tour guiado por toda la ventana (`Mayús+F1`: solo la página visible) |
-| `F2` / menú *Ejemplos* | galería de 11 escenarios listos para cargar |
+| `F2` / menú *Ejemplos* | galería de 13 escenarios listos para cargar |
 | `Ctrl+O` / `Ctrl+Mayús+S` | abrir / guardar un escenario propio (menú *Archivo*) |
 
 Las seis pestañas: **Actitud** (sintonía PID), **Trayectorias** (controladores
@@ -105,7 +105,7 @@ python -m pytest -q
 - El segundo regenera toda la evidencia numérica del modelo (Secc. 3–14:
   convergencia de RK4, conservación de energía, Dzhanibekov, hover, etc.)
   en ~1 min.
-- El tercero corre las 231 pruebas automáticas.
+- El tercero corre las 277 pruebas automáticas.
 
 Consejo para la presentación: tener abierto el PDF en la tabla del banco y
 correr la demo E en vivo; los números no son idénticos a los de la tabla

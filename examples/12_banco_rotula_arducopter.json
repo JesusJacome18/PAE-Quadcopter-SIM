@@ -1,0 +1,55 @@
+{
+  "formato": "quadsim/escenario",
+  "version": 1,
+  "titulo": "Dron ArduCopter en el banco de rótula",
+  "nivel": "Intermedio",
+  "duracion_min": 5,
+  "descripcion": "El dron ArduCopter con BeagleBone Blue (670 g, bastidor X de 300 mm, hélices tripala de 5 pulgadas) está sobre una rótula: solo puede girar. El pivote queda 40.7 mm por debajo del centro de masa, así que el banco es un péndulo invertido. El lazo de control corre a 400 Hz, como SCHED_LOOP_RATE en ArduCopter, y el empuje es fijo, como el acelerador manual de Stabilize.",
+  "aprenderas": [
+    "Por qué un banco con el pivote bajo el centro de masa es inestable",
+    "Cómo cambia la respuesta de las mismas ganancias entre el vuelo libre y el banco",
+    "Comparar las ganancias SIMC con las que usa el dron real"
+  ],
+  "pasos": [
+    "La simulación arranca sola con el dron inclinado 5° en alabeo; el control lo nivela. En t = 2 s se aplica un escalón de 10° en roll.",
+    "Anote el sobrepaso de la tabla. Después quite la marca «Dron sobre el banco» y aplique el mismo escalón en vuelo libre: con las mismas ganancias el sobrepaso casi desaparece.",
+    "Vuelva a poner el dron en el banco y lleve el empuje a 0: con los motores apagados cae hasta el tope de la rótula en menos de un segundo. La sección del banco muestra la tasa de crecimiento λ.",
+    "Escriba las ganancias del dron real (ArduPilot) en roll: Kp de ángulo 4.5; Kp, Ki y Kd de tasa 0.297, 0.297 y 0.0036. Pulse Ctrl+R: el escalón se repite con ellas."
+  ],
+  "observa": "Sobre el banco la gravedad empuja al dron hacia el lado al que ya se inclina, y la inercia alrededor del pivote es 40 % mayor que alrededor del centro de masa. Las ganancias SIMC, calculadas para el vuelo libre, siguen siendo estables, pero el escalón se pasa de la referencia. Las ganancias del dron real tienen un Kp de tasa tres veces mayor que el SIMC y un integral 2.4 veces menor: el escalón sube más despacio y se pasa menos.",
+  "resultado_esperado": "Con las ganancias SIMC (Kp de tasa = 0.0914 a 400 Hz), sobre el banco: subida de 0.12 s y sobrepaso de 20 %. Las mismas ganancias en vuelo libre: subida de 0.13 a 0.16 s y sobrepaso de 0 %. Con el empuje en 0 el dron llega al tope de 30° unos 0.5 s después (λ = 8.4 1/s). Con las ganancias del dron real sobre el banco: subida de 0.36 s y sobrepaso de 5 %. Las cifras pueden variar unas décimas según el instante exacto del escalón.",
+  "pagina": "actitud",
+  "iniciar": true,
+  "config": {
+    "vehiculo": "arducopter_bbblue",
+    "frecuencia_control_hz": 400,
+    "modo": "actitud",
+    "ganancias": "simc",
+    "banco": {
+      "activo": true,
+      "pivote_bajo_cm_mm": 40.7,
+      "empuje_relativo": 1.0,
+      "friccion_viscosa": 0.0002,
+      "friccion_coulomb": 0.001,
+      "tope_inclinacion_deg": 30,
+      "bloquear_guinada": false,
+      "alabeo_inicial_deg": 5,
+      "cabeceo_inicial_deg": 0
+    },
+    "referencias": {
+      "roll": 0,
+      "pitch": 0,
+      "yaw": 0,
+      "alt": 1.5
+    }
+  },
+  "acciones": [
+    {
+      "t": 2.0,
+      "accion": "escalon",
+      "eje": "roll",
+      "amplitud": 10,
+      "ventana": 3
+    }
+  ]
+}

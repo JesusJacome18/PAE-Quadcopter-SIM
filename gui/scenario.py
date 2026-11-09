@@ -19,8 +19,15 @@ otra cosa):
       "iniciar": true,
       "config": {
         "vehiculo", "semilla", "altura_inicial", "modo": "actitud" | "trayectoria",
+        "frecuencia_control_hz": 500 (lazo de actitud; 400 = SCHED_LOOP_RATE de ArduCopter),
+        "banco": {"activo", "pivote_bajo_cm_mm", "empuje_relativo", "friccion_viscosa",
+                  "friccion_coulomb", "tope_inclinacion_deg", "bloquear_guinada",
+                  "alabeo_inicial_deg", "cabeceo_inicial_deg"},
+        "ley_actitud": "quadsim" | "ardupilot",
+        "parametros_ardupilot": {NOMBRE_DE_ARDUPILOT: valor, ...} (como en un .param,
+                  p. ej. "ATC_RAT_RLL_P": 0.297) o la forma que guarda el programa,
         "referencias": {"roll", "pitch", "yaw", "alt"},
-        "ganancias": "simc" | {eje: {angle_kp, rate_kp, rate_ki, rate_kd},
+        "ganancias": "simc" | "ardupilot" | {eje: {angle_kp, rate_kp, rate_ki, rate_kd},
                                "altura": {pos_kp, vel_kp, vel_ki, vel_kd}},
         "estimador": {"tipo", "ganancias", "usar_magnetometro", "compensar_aceleracion"},
         "sensores": {"vibracion", "vibracion_giro_dps"},
@@ -53,11 +60,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QObject
 
+from quadsim.control.ardupilot import ArduPilotParams
 from quadsim.control.attitude import AXES
+from quadsim.control.tuning import suggest_attitude_gains
 from quadsim.disturbances import (DisturbanceConfig, MagEMIConfig, MotorFault, PayloadEvent,
                                   WindConfig)
-from quadsim.simulator import FilterStage
-from quadsim.vehicles import VEHICLES
+from quadsim.simulator import ATTITUDE_LAWS, FilterStage
+from quadsim.vehicles import VEHICLES, get_vehicle
 
 from . import registry
 from .about import APP_NAME, APP_VERSION
@@ -106,6 +115,17 @@ ALT_GAIN_LIMITS = {"pos_kp": 10.0, "vel_kp": 30.0, "vel_ki": 60.0, "vel_kd": 5.0
 EMI_KEYS = {"activa": "enabled", "ganancia_uT": "gain_uT", "direccion": "direction_B",
             "pulsos_hz": "spike_rate_hz", "pulsos_uT": "spike_uT"}
 SENSOR_KEYS = {"vibracion": "vibration_enabled", "vibracion_giro_dps": "vib_gyro_dps"}
+#: Banco de rótula: nombre en el archivo -> (atributo de BenchConfig, escala, rango
+#: en unidades del archivo). Los rangos son los de los campos de la página Actitud.
+BENCH_KEYS = {"pivote_bajo_cm_mm": ("pivot_below_cm_m", 1e-3, (0.0, 200.0)),
+              "empuje_relativo": ("thrust_ratio", 1.0, (0.0, 1.5)),
+              "friccion_viscosa": ("viscous_Nms", 1.0, (0.0, 0.05)),
+              "friccion_coulomb": ("coulomb_Nm", 1.0, (0.0, 0.1)),
+              "tope_inclinacion_deg": ("tilt_limit_deg", 1.0, (5.0, 89.0)),
+              "alabeo_inicial_deg": ("initial_roll_deg", 1.0, (-30.0, 30.0)),
+              "cabeceo_inicial_deg": ("initial_pitch_deg", 1.0, (-30.0, 30.0))}
+#: Frecuencias del lazo de control aceptadas en "frecuencia_control_hz".
+CTRL_HZ_LIMITS = (100.0, 2000.0)
 
 
 class ScenarioError(ValueError):
@@ -283,7 +303,8 @@ def _build_config(scen: dict):
     warns: List[str] = []
     known = {"vehiculo", "semilla", "altura_inicial", "modo", "referencias", "ganancias",
              "estimador", "sensores", "filtros", "trayectoria", "controlador",
-             "perturbaciones"}
+             "perturbaciones", "frecuencia_control_hz", "banco", "ley_actitud",
+             "parametros_ardupilot"}
     for k in c:
         if k not in known:
             warns.append(f"Clave desconocida en config: '{k}' (se ignora).")
@@ -296,6 +317,40 @@ def _build_config(scen: dict):
     cfg.vehicle = veh
     cfg.seed = int(_num(c.get("semilla", cfg.seed), "semilla", 0, 2 ** 31 - 1))
     cfg.start_alt = _num(c.get("altura_inicial", cfg.start_alt), "altura_inicial", 0.2, 50)
+    cfg.ctrl_hz = _num(c.get("frecuencia_control_hz", cfg.ctrl_hz), "frecuencia_control_hz",
+                       *CTRL_HZ_LIMITS)
+
+    # ---- banco de rótula
+    bn = _dict(c.get("banco"), "config.banco")
+    for k, v in bn.items():
+        if k == "activo":
+            cfg.bench.enabled = _bool(v, "banco.activo")
+        elif k == "bloquear_guinada":
+            cfg.bench.lock_yaw = _bool(v, "banco.bloquear_guinada")
+        elif k in BENCH_KEYS:
+            attr, scale, lim = BENCH_KEYS[k]
+            setattr(cfg.bench, attr, _num(v, f"banco.{k}", *lim) * scale)
+        else:
+            warns.append(f"Clave desconocida en banco: '{k}' (se ignora).")
+
+    # ---- ley de actitud y parametros de ArduPilot
+    law = c.get("ley_actitud", "quadsim")
+    if law not in ATTITUDE_LAWS:
+        raise ScenarioError(f"'ley_actitud' desconocida: '{law}'. Opciones: "
+                            f"{', '.join(ATTITUDE_LAWS)}.")
+    cfg.attitude_law = law
+    pa = c.get("parametros_ardupilot")
+    if pa is not None:
+        pa = _dict(pa, "config.parametros_ardupilot")
+        try:
+            if pa and all(isinstance(k, str) and k.isupper() for k in pa):
+                cfg.ardupilot = ArduPilotParams.from_dict(
+                    {k: _num(v, f"parametros_ardupilot.{k}") for k, v in pa.items()},
+                    source="parámetros del escenario")
+            else:
+                cfg.ardupilot = ArduPilotParams.from_saved(pa)
+        except (TypeError, ValueError, KeyError) as e:
+            raise ScenarioError(f"'parametros_ardupilot' no es válido: {e}") from e
 
     # ---- estimador
     e = _dict(c.get("estimador"), "config.estimador")
@@ -421,8 +476,19 @@ def _build_config(scen: dict):
         missing = [ax for ax in AXES if ax not in gains]
         if missing and gains:
             warns.append(f"Ganancias sin definir para {', '.join(missing)}: quedan las SIMC.")
-    elif g not in (None, "simc"):
-        raise ScenarioError("'ganancias' debe ser \"simc\" o un objeto por eje.")
+    elif g == "ardupilot":
+        gains = cfg.ardupilot.gains()
+    elif g in (None, "simc"):
+        if cfg.attitude_law == "ardupilot":
+            # con la ley de ArduPilot la simulacion arranca con las ganancias
+            # de sus parametros: "simc" se pide explicitamente
+            sg = suggest_attitude_gains(get_vehicle(cfg.vehicle), 1.0 / cfg.ctrl_hz)
+            gains = {ax: {"angle_kp": sg[ax]["angle"]["kp"], "rate_kp": sg[ax]["rate"]["kp"],
+                          "rate_ki": sg[ax]["rate"]["ki"], "rate_kd": sg[ax]["rate"]["kd"]}
+                     for ax in AXES}
+    else:
+        raise ScenarioError("'ganancias' debe ser \"simc\", \"ardupilot\" o un objeto por "
+                            "eje.")
 
     # ---- referencias
     r = _dict(c.get("referencias"), "config.referencias")
@@ -472,6 +538,9 @@ def _build_config(scen: dict):
     if mode not in ("actitud", "trayectoria"):
         raise ScenarioError("'modo' debe ser \"actitud\" o \"trayectoria\".")
     fly = mode == "trayectoria"
+    if fly and cfg.bench.enabled:
+        raise ScenarioError("Sobre el banco de rótula el dron no sigue trayectorias: use "
+                            "\"modo\": \"actitud\" o desactive el banco.")
     if fly and (traj is None or ctrl is None):
         raise ScenarioError("El modo trayectoria necesita 'trayectoria' y 'controlador'.")
 
@@ -497,6 +566,13 @@ def _build_config(scen: dict):
     return cfg, gains, sp, traj, ctrl, fly, warns
 
 
+def _capture_bench(b) -> dict:
+    out = {"activo": bool(b.enabled), "bloquear_guinada": bool(b.lock_yaw)}
+    for k, (attr, scale, _) in BENCH_KEYS.items():
+        out[k] = round(float(getattr(b, attr)) / scale, 9)
+    return out
+
+
 def capture(win) -> dict:
     """Escenario con la configuración ACTUAL de la ventana (para guardar)."""
     from .pages.attitude import AttitudePage
@@ -519,7 +595,12 @@ def capture(win) -> dict:
         "vehiculo": cfg.vehicle,
         "semilla": int(cfg.seed),
         "altura_inicial": float(ctl.attitude_start_alt),
+        "frecuencia_control_hz": float(cfg.ctrl_hz),
         "modo": "trayectoria" if fly else "actitud",
+        "banco": _capture_bench(cfg.bench) if cfg.bench.enabled else None,
+        "ley_actitud": cfg.attitude_law if cfg.attitude_law != "quadsim" else None,
+        "parametros_ardupilot": (cfg.ardupilot.to_dict() if cfg.attitude_law != "quadsim"
+                                 else None),
         "referencias": {k: float(v) for k, v in sp.items()},
         "ganancias": dict(copy.deepcopy(ctl.gains()), altura=ctl.alt_gains()),
         "estimador": {"tipo": cfg.estimator, "ganancias": dict(sim.estimator.gains()),
@@ -729,7 +810,8 @@ def _describe(scen: dict) -> List[Tuple[str, str]]:
     c = scen.get("config", {}) or {}
     out = []
     veh = c.get("vehiculo", "pae_x450")
-    out.append(("Vehículo", VEHICLES[veh].name.split(" (")[0] if veh in VEHICLES else veh))
+    out.append(("Vehículo", (VEHICLES[veh].short_name or VEHICLES[veh].name.split(" (")[0])
+                            if veh in VEHICLES else veh))
     e = c.get("estimador", {}) or {}
     est = EST_LABEL.get(e.get("tipo", "mahony"), e.get("tipo", "mahony"))
     if e.get("compensar_aceleracion") is False:
@@ -743,10 +825,21 @@ def _describe(scen: dict) -> List[Tuple[str, str]]:
         out.append(("Modo", "Seguimiento de trayectoria"))
         out.append(("Trayectoria", registry.label_of(trajs[tk], tk) if tk in trajs else tk))
         out.append(("Controlador", registry.label_of(ctrls[ck], ck) if ck in ctrls else ck))
+    elif (c.get("banco") or {}).get("activo"):
+        b = c.get("banco") or {}
+        txt = "Banco de rótula"
+        if "pivote_bajo_cm_mm" in b:
+            txt += f", pivote {float(b['pivote_bajo_cm_mm']):g} mm bajo el centro de masa"
+        out.append(("Modo", txt))
     else:
         out.append(("Modo", "Actitud (referencias manuales)"))
+    if c.get("frecuencia_control_hz") not in (None, 500, 500.0):
+        out.append(("Lazo de control", f"{float(c['frecuencia_control_hz']):g} Hz"))
+    if c.get("ley_actitud") == "ardupilot":
+        out.append(("Ley de actitud", "ArduPilot (ArduCopter 4.7, Stabilize)"))
     g = c.get("ganancias", "simc")
     out.append(("Ganancias PID", "SIMC del vehículo" if g in (None, "simc") else
+                "las de los parámetros de ArduPilot" if g == "ardupilot" else
                 "definidas en el escenario"))
     p = c.get("perturbaciones", {}) or {}
     dist = []

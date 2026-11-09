@@ -35,6 +35,12 @@ identificar el ESC y el firmware reales.
 Modos:
     "attitude"    el usuario fija roll/pitch/yaw y altura (sintonia de PID)
     "trajectory"  un controlador de posicion sigue una trayectoria
+
+Banco de rotula (SimConfig.bench.enabled, ver quadsim/bench.py): el dron
+gira alrededor de un pivote fijo. Se usa con el modo actitud: las referencias
+de roll/pitch/yaw siguen valiendo, pero no hay lazo de altura (el empuje lo
+fija bench.thrust_ratio, como el acelerador manual de Stabilize) ni
+seguimiento de trayectorias.
 """
 
 from __future__ import annotations
@@ -47,6 +53,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from . import math3d as m3
+from .bench import BenchConfig, BenchDynamics
+from .control.ardupilot import ArduCopterAttitude, ArduPilotParams
 from .control.attitude import (AXES, AttitudeController, VerticalController,
                                acceleration_to_attitude)
 from .disturbances import DisturbanceConfig, DisturbanceManager
@@ -58,6 +66,9 @@ from .filters import Biquad
 from .propulsion import Mixer, esc_steady_speed
 from .sensors import SensorConfig, SensorSuite
 from .vehicles import G, VehicleParams, get_vehicle, with_payload
+
+
+ATTITUDE_LAWS = ("quadsim", "ardupilot")
 
 
 @dataclass
@@ -147,6 +158,13 @@ class SimConfig:
     # Limite de inclinacion comun a TODOS los controladores de posicion.
     tilt_max_deg: float = 30.0
     mode: str = "attitude"
+    # Banco de rotula (apagado por defecto): ver quadsim/bench.py
+    bench: BenchConfig = field(default_factory=BenchConfig)
+    # Ley de control de actitud: "quadsim" (cascada P -> PID de PX4 con el
+    # mezclador por modelo) o "ardupilot" (la de ArduCopter 4.7 en Stabilize,
+    # quadsim/control/ardupilot.py, con los parametros de `ardupilot`).
+    attitude_law: str = "quadsim"
+    ardupilot: ArduPilotParams = field(default_factory=ArduPilotParams)
     start_airborne: bool = False
     start_alt: float = 1.0
     seed: int = 1
@@ -188,6 +206,13 @@ class Simulation:
         # identificacion en lazo cerrado): funcion t -> 4 incrementos de
         # acelerador que se suman a la salida del mezclador. None = apagada.
         self.input_dither = None
+        # Acelerador de ArduPilot impuesto desde fuera (empuje normalizado,
+        # p. ej. CTUN.ThI de un registro real al repetir un vuelo); None = el
+        # que corresponde a thrust_cmd. Solo con attitude_law = "ardupilot".
+        self.ardupilot_throttle_in = None
+        # Actitud objetivo impuesta (q, w_cuerpo), p. ej. ANG de un registro;
+        # None = la calcula el modelo de comando de ArduPilot.
+        self.ardupilot_target = None
         self.last_env = None
         self.position_controller = None
         self.trajectory = None
@@ -231,9 +256,13 @@ class Simulation:
         self.log_every = max(1, int(round(c.ctrl_hz / c.log_hz)))
         self.integrate = INTEGRATORS[c.integrator]
 
-        self.dyn = QuadrotorDynamics(self.p)
+        self.bench_on = bool(c.bench.enabled)
+        self.dyn = (BenchDynamics(self.p, c.bench) if self.bench_on
+                    else QuadrotorDynamics(self.p))
         self.mixer = Mixer(self.p)
-        self.sensors = SensorSuite(c.sensors, self.dt_ctrl, self.p.omega_hover, c.seed)
+        self.sensors = SensorSuite(c.sensors, self.dt_ctrl, self.p.omega_hover, c.seed,
+                                   blades=self.p.blades,
+                                   imu_antialias_hz=self.p.imu_antialias_hz)
         self.dist = DisturbanceManager(c.disturbances, c.seed)
         self.make_estimator()
         self.nav = NavEstimator(self.dt_ctrl, accel_noise=c.nav_accel_noise,
@@ -244,6 +273,17 @@ class Simulation:
             self.nominal, self.dt_ctrl,
             chain=self.attitude_chain() if c.gains_from_chain else None)
         self.vert_ctrl = VerticalController(self.nominal, self.dt_outer)
+        if c.attitude_law not in ATTITUDE_LAWS:
+            raise ValueError(f"SimConfig.attitude_law: {c.attitude_law!r} no existe; "
+                             f"validas: {', '.join(ATTITUDE_LAWS)}")
+        self.ap_ctrl = None
+        if c.attitude_law == "ardupilot":
+            self.ap_ctrl = ArduCopterAttitude(c.ardupilot, self.dt_ctrl, self.nominal.rotors)
+            # las ganancias del usuario viven en att_ctrl (la GUI las edita
+            # ahi); con la ley de ArduPilot arrancan en las de sus parametros
+            for ax, g in c.ardupilot.gains().items():
+                self.att_ctrl.set_gains(ax, g["angle_kp"], g["rate_kp"], g["rate_ki"],
+                                        g["rate_kd"])
         if saved is not None and saved[0] == c.vehicle and saved[1] == c.ctrl_hz:
             for ax, g in saved[2].items():
                 self.att_ctrl.set_gains(ax, g["angle_kp"], g["rate_kp"], g["rate_ki"],
@@ -272,9 +312,13 @@ class Simulation:
             self._sigma_hist = deque([[s0] * 4] * self._sigma_hist.maxlen,
                                      maxlen=self._sigma_hist.maxlen)
             self._esc_out = [s0] * 4
-        self.armed = c.start_airborne
+        if self.bench_on:
+            self._init_bench_state()
+        self.armed = self._bench_armed() if self.bench_on else c.start_airborne
         self.setpoint = {"roll": 0.0, "pitch": 0.0, "yaw": 0.0,
                          "alt": c.start_alt if c.start_airborne else 0.0}
+        if self.bench_on:
+            self.setpoint["yaw"] = m3.wrap_pi(math.radians(c.bench.initial_yaw_deg))
         self.att_sp = (0.0, 0.0, 0.0)
         self.thrust_cmd = 0.0
         self.yaw_rate_ff = 0.0
@@ -298,8 +342,13 @@ class Simulation:
         for i, bq in enumerate(self.acc_lpf):
             bq.reset((0.0, 0.0, -G)[i])
         self._est_ready = False
-        if c.start_airborne:
+        if self.bench_on:
+            self._prime_bench()
+        elif c.start_airborne:
             self._prime_airborne()
+        if self.ap_ctrl is not None:
+            self.ap_ctrl.prime(tuple(self.x[IQ:IQ + 4]),
+                               self.ardupilot_throttle(self.thrust_cmd) if self.armed else 0.0)
         self.alt_filter_obj = Biquad(c.outer_hz, c.alt_filter.ftype, c.alt_filter.fc,
                                      c.alt_filter.q)
         self.log: Dict[str, list] = {}
@@ -328,6 +377,96 @@ class Simulation:
         if self.cfg.acc_compensation and self.cfg.nav_uses_position_sensor:
             self.acc_comp.gain = 1.0
         self.thrust_cmd = self.nominal.weight
+
+    # ------------------------------------------------- ley de ArduPilot
+    def ardupilot_throttle(self, thrust_n: float) -> float:
+        """
+        Empuje colectivo [N] -> acelerador de ArduPilot (empuje normalizado
+        de su curva MOT_THST_EXPO). Es el piloto que pone la palanca justo
+        donde el modelo del motor da ese empuje: con roll, pitch y yaw en
+        cero, la curva de ArduPilot devuelve exactamente la salida del ESC
+        que produce `thrust_n`. La diferencia entre la curva de ArduPilot y
+        la del motor real aparece en cuanto el control reparte empuje
+        entre los motores, que es lo que se quiere ver.
+        """
+        if thrust_n <= 0.0 or self.ap_ctrl is None:
+            return 0.0
+        from .propulsion import esc_inverse
+        p = self.nominal
+        w = min(math.sqrt(thrust_n / (4.0 * p.Ct)), p.omega_max)
+        return self.ap_ctrl.actuator_to_thrust(esc_inverse(p, w))
+
+    def _ardupilot_step(self):
+        ap = self.ap_ctrl
+        ap.set_gains(self.att_ctrl.get_gains())
+        q = m3.euler_to_q(*self.est_att)
+        thr = (self.ardupilot_throttle(self.thrust_cmd) if self.ardupilot_throttle_in is None
+               else max(0.0, min(1.0, float(self.ardupilot_throttle_in))))
+        # Stabilize aplica el refuerzo por inclinacion (ATC_ANGLE_BOOST) al
+        # acelerador del piloto. En vuelo libre el lazo de altura de QuadSim
+        # ya divide por cos(inclinacion): ahi no se repite.
+        sig = ap.update(self.att_sp, q, self.meas_rates, thr, armed=True,
+                        apply_boost=self.bench_on, target=self.ardupilot_target)
+        self.att_ctrl.rate_sp = ap.rate_target
+        self.att_ctrl.u = ap.rpy
+        return sig
+
+    def set_attitude_law(self, law: str, params: Optional[ArduPilotParams] = None):
+        """Cambia la ley de actitud (y los parametros de ArduPilot) y reinicia."""
+        if law not in ATTITUDE_LAWS:
+            raise ValueError(f"ley de actitud desconocida: {law!r}")
+        self.cfg.attitude_law = law
+        if params is not None:
+            self.cfg.ardupilot = params
+        self.reset()
+
+    # ------------------------------------------------------ banco de rotula
+    def _bench_armed(self) -> bool:
+        return self.bench_on and self.cfg.bench.thrust_ratio > 0.0
+
+    def _init_bench_state(self):
+        """Estado inicial sobre el banco: actitud inicial, rotores ya girando
+        con el empuje pedido (si esta armado) y p, v sobre la restriccion."""
+        b = self.cfg.bench
+        x = self.x
+        q = m3.euler_to_q(math.radians(b.initial_roll_deg),
+                          math.radians(b.initial_pitch_deg),
+                          math.radians(b.initial_yaw_deg))
+        x[IQ:IQ + 4] = list(q)
+        x[IW:IW + 3] = [0.0, 0.0, 0.0]
+        T = max(0.0, b.thrust_ratio) * self.p.weight
+        w0 = math.sqrt(T / (4.0 * self.p.Ct)) if b.thrust_ratio > 0 else 0.0
+        w0 = min(w0, self.p.omega_max)
+        x[IR:IR + 4] = [w0] * 4
+        self.dyn.project(x)
+        from .propulsion import esc_inverse
+        s0 = esc_inverse(self.p, w0) if w0 > 0.0 else 0.0
+        self._sigma_hist = deque([[s0] * 4] * self._sigma_hist.maxlen,
+                                 maxlen=self._sigma_hist.maxlen)
+        self._esc_out = [s0] * 4
+
+    def _prime_bench(self):
+        """Arranque sobre el banco: el AHRS se alinea con el dron quieto en la
+        rotula (como la alineacion en tierra de un autopiloto) y el
+        navegador parte de la posicion del centro de masa."""
+        x = self.x
+        self.sensors.prime(x)
+        self.estimator.q = m3.q_mul(self.estimator.q_decl_inv, tuple(x[IQ:IQ + 4]))
+        self.estimator.initialized = True
+        self.nav.reset((x[0], x[1], x[2]))
+        self.nav.settle(self.cfg.sensors.pos_rate_hz if self.cfg.nav_uses_position_sensor
+                        else 0.0, self.cfg.ctrl_hz)
+        self.thrust_cmd = max(0.0, self.cfg.bench.thrust_ratio) * self.nominal.weight
+
+    @property
+    def bench_tilt_deg(self) -> float:
+        """Inclinacion respecto a la vertical [deg] (en cualquier modo)."""
+        return math.degrees(math.acos(max(-1.0, min(1.0, m3.q_to_rot(
+            self.x[IQ:IQ + 4])[2][2]))))
+
+    def set_bench_thrust(self, ratio: float):
+        """Empuje colectivo en el banco, como fraccion del peso (0 = apagado)."""
+        self.cfg.bench.thrust_ratio = max(0.0, float(ratio))
 
     def make_estimator(self):
         c = self.cfg
@@ -508,7 +647,12 @@ class Simulation:
             self._outer_loop()
 
         # ---- lazo de actitud + mezclador ------------------------------------
-        if self.armed:
+        if self.armed and self.ap_ctrl is not None:
+            self.sigma = self._ardupilot_step()
+            if self.input_dither is not None:
+                d = self.input_dither(self.t)
+                self.sigma = [min(1.0, max(0.0, s + di)) for s, di in zip(self.sigma, d)]
+        elif self.armed:
             self.att_ctrl.update(self.att_sp, self.est_att, self.meas_rates,
                                  self.yaw_rate_ff)
             tau = self.att_ctrl.torque()
@@ -519,6 +663,9 @@ class Simulation:
         else:
             self.att_ctrl.reset()
             self.vert_ctrl.reset()
+            if self.ap_ctrl is not None:
+                self.ap_ctrl.update(self.att_sp, m3.euler_to_q(*self.est_att),
+                                    self.meas_rates, 0.0, armed=False)
             self.sigma = [0.0] * 4
 
         # ---- cadena de actuacion: retardo de computo -------------------------
@@ -540,7 +687,10 @@ class Simulation:
             self.x, _ = self.integrate(f, self.x, dt)
             renormalize_quat(self.x)
             self.sensors.advance_rotor_phase(self.x[IR:IR + 4], dt)
-            self._ground_contact()
+            if self.bench_on:
+                self.dyn.project(self.x)
+            else:
+                self._ground_contact()
         self.t += self.dt_ctrl
         self.k += 1
         if c.log_enabled and self.k % self.log_every == 0:
@@ -572,6 +722,8 @@ class Simulation:
         return self._esc_out
 
     def _on_ground(self) -> bool:
+        if self.bench_on:
+            return False
         return self.x[2] >= -1e-6
 
     def _ground_contact(self):
@@ -593,6 +745,14 @@ class Simulation:
         sp = self.setpoint
         alt_est = -self.nav.position[2]
         climb_est = -self.nav.velocity[2]
+        if self.bench_on:
+            # banco: empuje fijo (acelerador manual), solo referencias de actitud
+            self.armed = self._bench_armed()
+            self.thrust_cmd = (min(c.bench.thrust_ratio * self.nominal.weight,
+                                   0.95 * self.nominal.max_thrust) if self.armed else 0.0)
+            self.att_sp = (sp["roll"], sp["pitch"], sp["yaw"])
+            self.yaw_rate_ff = 0.0
+            return
         if c.mode == "trajectory" and self.position_controller is not None \
                 and self.trajectory is not None:
             self.armed = True
@@ -687,11 +847,13 @@ class Simulation:
             "thrust": T, "thrust_cmd": self.thrust_cmd,
             "torque": (tx, ty, tz),
             "u_norm": self.att_ctrl.u,
+            "attitude_law": self.cfg.attitude_law,
             "mixer_k_rp": self.mixer.k_rp, "mixer_k_yaw": self.mixer.k_yaw,
             "wind": self.dist.wind_E, "emi": self.dist.emi_B,
             "vib_hz": self.sensors.vibration_freq_hz,
             "mass": self.p.mass, "payload_kg": self.payload_kg,
             "armed": self.armed, "estimator": self.estimator.name,
+            "bench": self.bench_on, "tilt_deg": self.bench_tilt_deg,
             "acc_comp_gain": self.acc_comp.gain,
             "gyro_bias_est": tuple(D(b) for b in self.estimator.bias),
             "gyro_bias_true": tuple(D(b) for b in self.sensors.gyro_bias),
