@@ -332,13 +332,15 @@ la curva). La simulación lo aplica sola con la ley de ArduPilot.
 3. **Los motores no tuvieron la autoridad que predice el modelo.** Con el dron quieto en el tope
    hubo tramos de casi un segundo con dos motores en ~1540 µs y dos en ~1120 µs, en la dirección
    que lo levanta; según el modelo eso es 5.7 veces el momento de la gravedad (debía salir del tope
-   en décimas de segundo) y el dron no se movió (por ejemplo, de 1371.2 a 1371.6 s). La salida del
+   en décimas de segundo) y el dron no se movió (por ejemplo, de 1737.8 a 1738.1 s del registro). La salida del
    PID de roll o pitch estaba saturada (|ROut| o |POut| ≈ 1 a 1.5) casi todo el tiempo.
 4. **Con el empuje del modelo, QuadSim no reproduce el ensayo.** Repitiendo las palancas y el
    acelerador del registro, con empuje completo el dron simulado sale del tope y gira a 130 °/s
    (percentil 95), y solo el 85 % del tiempo está en el tope. Con el empuje de la física reducido
    al 5 – 15 % (`--escala-empuje`), el dron simulado se queda en el tope todo el tiempo, como el
-   real, y la correlación del alabeo con el real pasa de −0.4 a valores entre 0.3 y 0.7. Con empuje invertido (hélices al revés) el
+   real, y la correlación del alabeo con el real pasa de −0.4 a valores entre 0.3 y 0.7. Aun así se
+   desliza por el borde del tope más que el real: el tope de QuadSim no tiene roce y el real sí
+   parece tenerlo. Con empuje invertido (hélices al revés) el
    simulado gira mucho más rápido que el real (300 – 600 °/s).
 
 **Lectura:** en esta prueba los motores dieron mucho menos momento de alabeo y cabeceo del que
@@ -351,6 +353,9 @@ menos:
   este tamaño piden decenas de amperios); si fue la batería, su carga;
 - orden de los motores y sentido de giro (prueba de motores de Mission Planner, motor por motor);
 - algo que frene la rótula o que tire del dron (cables, tope que agarra).
+
+En el modelo falta además el roce en el tope (el dron real no se desliza por el borde como el
+simulado); se puede agregar cuando haya un ensayo en que el dron se equilibre.
 
 Una prueba de empuje con una balanza de cocina, un motor a la vez a 1300, 1400 y 1500 µs, lo
 resuelve: según el modelo, a 1500 µs cada motor empuja unos 430 g.
