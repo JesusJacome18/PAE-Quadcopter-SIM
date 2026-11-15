@@ -38,6 +38,11 @@ PARAM_ROWS = [
     ("esc_wb", "Ordenada ESC ω_b", "rad/s", "Ω_ss = C_R σ + ω_b."),
     ("Tm", "Constante del motor T_m", "s", "Primer orden: T_m Ω̇ = Ω_ss − Ω."),
     ("min_throttle", "Zona muerta ESC", "—", "Acelerador mínimo con el que gira."),
+    ("blades", "Palas por hélice", "—", "Fija la frecuencia de paso de pala de la vibración."),
+    ("imu_antialias_hz", "Anti-alias de la IMU", "Hz",
+     "Pasa-bajos que el autopiloto aplica a la tasa del sensor, antes de bajar a la tasa "
+     "de control. Atenúa la vibración que, sin él, se repliega por debajo de Nyquist. "
+     "— = sin filtro."),
     ("cd_quad_xy", "Arrastre C_d (x, y)", "N/(m/s)²", "f = −C_d v|v| en x_B, y_B."),
     ("cd_quad_z", "Arrastre C_d (z)", "N/(m/s)²", "f = −C_d v|v| en z_B."),
     ("cd_lin", "Arrastre lineal A", "kg/s", "f = −A v."),
@@ -209,7 +214,7 @@ class VehiclePage(Page):
             "tau_r": Readout("Momento máx. roll", "N·m"),
             "tau_p": Readout("Momento máx. pitch", "N·m"),
             "tau_y": Readout("Momento máx. yaw", "N·m"),
-            "bp": Readout("Paso de pala en hover", "Hz", tip="f = 2 Ω_h / 2π (2 palas)"),
+            "bp": Readout("Paso de pala en hover", "Hz", tip="f = N Ω_h / 2π (N palas)"),
         }
         for i, r in enumerate(self.d.values()):
             g.addWidget(r, i // 4, i % 4)
@@ -255,7 +260,9 @@ class VehiclePage(Page):
         v = self.ctl.sim.nominal
         for r, (attr, name, unit, tip) in enumerate(PARAM_ROWS):
             val = getattr(v, attr)
-            if isinstance(val, tuple):
+            if val is None:
+                s = "—"
+            elif isinstance(val, tuple):
                 s = ", ".join(f"{x:.4g}" for x in val)
             elif isinstance(val, float):
                 s = f"{val:.5g}"
@@ -281,7 +288,7 @@ class VehiclePage(Page):
         self.d["tau_r"].set(f"{v.max_torque('roll'):.3f}")
         self.d["tau_p"].set(f"{v.max_torque('pitch'):.3f}")
         self.d["tau_y"].set(f"{v.max_torque('yaw'):.4f}")
-        self.d["bp"].set(f"{2 * v.omega_hover / (2 * math.pi):.0f}")
+        self.d["bp"].set(f"{v.blades * v.omega_hover / (2 * math.pi):.0f}")
         c = self.ctl.sim.cfg
         self.rates_note.setText(
             f"Paso de física Δt = {1000 / c.physics_hz:g} ms ({c.integrator.upper()}); "

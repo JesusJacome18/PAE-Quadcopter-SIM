@@ -1,0 +1,157 @@
+{
+  "formato": "quadsim/escenario",
+  "version": 1,
+  "titulo": "El controlador de ArduPilot en el banco de rótula",
+  "nivel": "Avanzado",
+  "duracion_min": 8,
+  "descripcion": "El mismo dron del ejemplo 12, ahora con la ley de actitud de ArduCopter 4.7 en Stabilize y los parámetros del .param del dron real: modelo de comando (ATC_INPUT_TC, ATC_ACC_R_MAX), controlador raíz cuadrada, PID de tasa con sus filtros FLTT y FLTD, mezclador de ArduPilot y curva MOT_THST_EXPO. El lazo corre a 400 Hz (SCHED_LOOP_RATE) y el giroscopio pasa por un Butterworth de 75 Hz (INS_GYRO_FILTER).",
+  "aprenderas": [
+    "Qué hace cada pieza del controlador de ArduCopter",
+    "Por qué las mismas ganancias responden distinto con otra estructura de control",
+    "Qué esperar del dron real en el banco antes de tener el .bin"
+  ],
+  "pasos": [
+    "La simulación arranca sola: el dron inclinado 5° en alabeo, el control lo nivela y en t = 2 s se aplica un escalón de 10° en roll. Anote subida y sobrepaso.",
+    "En «Ley de control de actitud» pase a QuadSim y pulse Ctrl+R: las mismas ganancias, ahora sin modelo de comando ni curva de empuje.",
+    "Vuelva a ArduPilot y pulse «Sugeridas SIMC»: las ganancias calculadas para QuadSim, con la estructura de ArduPilot.",
+    "Pulse «Ganancias del .param» para volver a las del dron. Quite la marca «Dron sobre el banco» y repita el escalón en vuelo libre."
+  ],
+  "observa": "ArduPilot no persigue el ángulo pedido de golpe: el modelo de comando mueve una actitud objetivo con aceleración y tirón limitados (ATC_INPUT_TC = 0.1 s, ATC_ACC_R_MAX = 1100 °/s²) y manda su velocidad como prealimentación al PID de tasa. Con las ganancias del dron (Kp de ángulo 4.5) esa prealimentación hace que ArduPilot suba más rápido que la cascada de QuadSim; con las SIMC (Kp de ángulo 7.9) el que pone el ritmo es el modelo de comando. Sobre el banco la gravedad empuja hacia el lado de la inclinación y aparece sobrepaso en los dos casos.",
+  "resultado_esperado": "Ley de ArduPilot con las ganancias del .param, sobre el banco: subida de 0.25 s y sobrepaso de 12 %. Ley de QuadSim con las mismas ganancias: 0.36 s y 5 %. ArduPilot con las SIMC: 0.16 s y 16 %. En vuelo libre, con las ganancias del .param: ArduPilot 0.41 s y QuadSim 0.63 s, los dos sin sobrepaso. Las cifras pueden variar unas centésimas según el instante exacto del escalón.",
+  "pagina": "actitud",
+  "iniciar": true,
+  "config": {
+    "vehiculo": "arducopter_bbblue",
+    "frecuencia_control_hz": 400,
+    "modo": "actitud",
+    "ley_actitud": "ardupilot",
+    "parametros_ardupilot": {
+      "ATC_ACC_P_MAX": 1100.0,
+      "ATC_ACC_R_MAX": 1100.0,
+      "ATC_ACC_Y_MAX": 270.0,
+      "ATC_ANG_LIM_TC": 1.0,
+      "ATC_ANG_PIT_P": 4.5,
+      "ATC_ANG_RLL_P": 4.5,
+      "ATC_ANG_YAW_P": 4.5,
+      "ATC_ANGLE_BOOST": 1.0,
+      "ATC_ANGLE_MAX": 45.0,
+      "ATC_INPUT_TC": 0.1,
+      "ATC_RAT_PIT_D": 0.0036,
+      "ATC_RAT_PIT_D_FF": 0.0,
+      "ATC_RAT_PIT_FF": 0.0,
+      "ATC_RAT_PIT_FLTD": 37.5,
+      "ATC_RAT_PIT_FLTE": 0.0,
+      "ATC_RAT_PIT_FLTT": 37.5,
+      "ATC_RAT_PIT_I": 0.29714,
+      "ATC_RAT_PIT_IMAX": 0.5,
+      "ATC_RAT_PIT_P": 0.29714,
+      "ATC_RAT_PIT_PDMX": 0.0,
+      "ATC_RAT_PIT_SMAX": 0.0,
+      "ATC_RAT_RLL_D": 0.0036,
+      "ATC_RAT_RLL_D_FF": 0.0,
+      "ATC_RAT_RLL_FF": 0.0,
+      "ATC_RAT_RLL_FLTD": 37.5,
+      "ATC_RAT_RLL_FLTE": 0.0,
+      "ATC_RAT_RLL_FLTT": 37.5,
+      "ATC_RAT_RLL_I": 0.29714,
+      "ATC_RAT_RLL_IMAX": 0.5,
+      "ATC_RAT_RLL_P": 0.29714,
+      "ATC_RAT_RLL_PDMX": 0.0,
+      "ATC_RAT_RLL_SMAX": 0.0,
+      "ATC_RAT_YAW_D": 0.0,
+      "ATC_RAT_YAW_D_FF": 0.0,
+      "ATC_RAT_YAW_FF": 0.0,
+      "ATC_RAT_YAW_FLTD": 0.0,
+      "ATC_RAT_YAW_FLTE": 2.0,
+      "ATC_RAT_YAW_FLTT": 37.5,
+      "ATC_RAT_YAW_I": 0.018,
+      "ATC_RAT_YAW_IMAX": 0.5,
+      "ATC_RAT_YAW_P": 0.18,
+      "ATC_RAT_YAW_PDMX": 0.0,
+      "ATC_RAT_YAW_SMAX": 0.0,
+      "ATC_RATE_FF_ENAB": 1.0,
+      "ATC_THR_MIX_MAN": 0.1,
+      "INS_GYRO_FILTER": 75.0,
+      "MOT_PWM_MAX": 1500.0,
+      "MOT_PWM_MIN": 1000.0,
+      "MOT_SPIN_ARM": 0.1,
+      "MOT_SPIN_MAX": 0.95,
+      "MOT_SPIN_MIN": 0.15,
+      "MOT_THST_EXPO": 0.49,
+      "MOT_THST_HOVER": 0.2,
+      "MOT_YAW_HEADROOM": 200.0,
+      "SCHED_LOOP_RATE": 400.0
+    },
+    "ganancias": "ardupilot",
+    "filtros": {
+      "roll": [
+        {
+          "tipo": "butterworth",
+          "fc": 75.0,
+          "q": 0.7071,
+          "ganancia_db": 0.0
+        },
+        {
+          "tipo": "none",
+          "fc": 177.0,
+          "q": 2.0,
+          "ganancia_db": 0.0
+        }
+      ],
+      "pitch": [
+        {
+          "tipo": "butterworth",
+          "fc": 75.0,
+          "q": 0.7071,
+          "ganancia_db": 0.0
+        },
+        {
+          "tipo": "none",
+          "fc": 177.0,
+          "q": 2.0,
+          "ganancia_db": 0.0
+        }
+      ],
+      "yaw": [
+        {
+          "tipo": "butterworth",
+          "fc": 75.0,
+          "q": 0.7071,
+          "ganancia_db": 0.0
+        },
+        {
+          "tipo": "none",
+          "fc": 177.0,
+          "q": 2.0,
+          "ganancia_db": 0.0
+        }
+      ]
+    },
+    "banco": {
+      "activo": true,
+      "pivote_bajo_cm_mm": 40.7,
+      "empuje_relativo": 1.0,
+      "friccion_viscosa": 0.0002,
+      "friccion_coulomb": 0.001,
+      "tope_inclinacion_deg": 30,
+      "bloquear_guinada": false,
+      "alabeo_inicial_deg": 5,
+      "cabeceo_inicial_deg": 0
+    },
+    "referencias": {
+      "roll": 0,
+      "pitch": 0,
+      "yaw": 0,
+      "alt": 1.5
+    }
+  },
+  "acciones": [
+    {
+      "t": 2.0,
+      "accion": "escalon",
+      "eje": "roll",
+      "amplitud": 10,
+      "ventana": 3
+    }
+  ]
+}

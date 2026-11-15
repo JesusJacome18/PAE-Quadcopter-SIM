@@ -1,0 +1,5 @@
+# Herramienta sim2real (comparacion con registros .bin de ArduPilot).
+# No la necesita el programa QuadSim.
+-r requirements.txt
+pymavlink>=2.4.40
+matplotlib>=3.7

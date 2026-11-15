@@ -50,7 +50,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field, replace
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 G = 9.80665  # m/s^2
 
@@ -96,6 +96,8 @@ class VehicleParams:
     source: str
     caveats: str = ""
     frame: str = "x"
+    # nombre corto para menus (vacio = la parte de `name` antes del parentesis)
+    short_name: str = ""
 
     # --- masa e inercia (marco cuerpo, en el centro de masa) ---------------
     mass: float = 1.4                 # kg
@@ -116,6 +118,19 @@ class VehicleParams:
     esc_wb: float = -141.4            # rad/s
     Tm: float = 0.02                  # s
     min_throttle: float = 0.05        # zona muerta del ESC
+    blades: int = 2                   # palas por helice (frecuencia de paso de pala)
+    # Filtro anti-alias de la IMU del autopiloto [Hz] (ver
+    # SensorConfig.imu_antialias_hz). None = sin filtro (IMU muestreada a la
+    # tasa de control, como en los vehiculos de referencia).
+    imu_antialias_hz: Optional[float] = None
+    # Curva del motor (k_w, exp_w, pwm_lo_esc, pwm_hi_esc):  w = k_w * s**exp_w
+    # con s = (PWM - pwm_lo_esc) / (pwm_hi_esc - pwm_lo_esc). Si existe, el
+    # mapa del ESC se puede recalcular para otro rango de salida del
+    # autopiloto (with_pwm_range). None = solo la recta esc_Cr / esc_wb.
+    motor_curve: Optional[Tuple[float, float, float, float]] = None
+    # PWM [us] que corresponde a sigma = 0 y sigma = 1 (MOT_PWM_MIN/MAX con
+    # que se ajusto esc_Cr / esc_wb). None = sigma sin PWM asociado.
+    sigma_pwm: Optional[Tuple[float, float]] = None
 
     # --- aerodinamica del fuselaje -----------------------------------------
     cd_quad_xy: float = 0.055         # N/(m/s)^2   f = -Cd v|v| en x_B, y_B
@@ -187,7 +202,7 @@ class VehicleParams:
             "key": self.key, "name": self.name, "frame": self.frame,
             "mass_kg": self.mass, "arm_m": self.arm,
             "J_kgm2": (self.Jxx, self.Jyy, self.Jzz),
-            "Ct": self.Ct, "Cm": self.Cm, "Jm": self.Jm,
+            "Ct": self.Ct, "Cm": self.Cm, "Jm": self.Jm, "blades": self.blades,
             "esc_Cr": self.esc_Cr, "esc_wb": self.esc_wb, "Tm_s": self.Tm,
             "omega_hover_rad_s": round(self.omega_hover, 1),
             "omega_hover_rpm": round(self.omega_hover * 60 / (2 * math.pi)),
@@ -354,8 +369,193 @@ HUMMINGBIRD = VehicleParams(
     cd_quad_xy=0.0, cd_quad_z=0.0, cd_lin=0.1, cm_damp=(0.0, 0.0, 0.0),
 )
 
+# =============================================================================
+# Dron ArduCopter con BeagleBone Blue (bastidor X de 300 mm impreso en 3D)
+# =============================================================================
+#
+# ACELERADOR. sigma es la salida de motor de ArduPilot: sigma = 0 -> 1000 us y
+# sigma = 1 -> 1500 us (MOT_PWM_MIN = 1000, MOT_PWM_MAX = 1500 en el .param).
+# La BeagleBone Blue solo genera PWM normal a RC_SPEED: RCOutput_AioPRU no
+# implementa set_output_mode y AP_BLHeli, que marca las salidas como digitales,
+# solo existe en ChibiOS. El primer .param pedia DShot300 (MOT_PWM_TYPE = 5),
+# que se ignoraba; desde el 30-oct-2026 el tipo de salida esta en Normal.
+# El ESC traduce ese PWM con su PROPIO rango (pwm_lo_esc .. pwm_hi_esc), que
+# depende de su firmware y aun no se conoce. Por eso hay dos variantes del
+# mismo dron: ESC de 1000-2000 us (principal) y BLHeli_S de fabrica
+# (1148-1832 us). El valor RCOU de un registro .bin en vuelo estacionario las
+# distingue: ~1242 us con la principal y ~1314 us con BLHeli_S.
+#
+# MOTOR. El motor real (2300 KV, clase 5") no tiene referencia. Se usa una
+# curva representativa a 15 V, ajustada con datos de fabricante (T-Motor
+# F40 PRO IV 2400 KV con T5146, FlashHobby K2306.5 2300 KV):
+#     w = 2565 * sigma_ESC ** 0.662   [rad/s],  sigma_ESC en [0, 1]
+# esc_map_fit() la convierte en la recta w = C_R*sigma + w_b del modelo.
+
+ARDU_MOTOR_K_W = 2565.0          # rad/s con sigma_ESC = 1 (helice 5046)
+ARDU_MOTOR_EXP_W = 0.662
+ARDU_RATIO_W_6045 = 0.885        # w(6045) / w(5046) a igual acelerador (K2306.5)
+
+
+def esc_map_fit(k_w: float, exp_w: float, pwm_lo_esc: float = 1000.0,
+                pwm_hi_esc: float = 2000.0, pwm_min: float = 1000.0,
+                pwm_max: float = 1500.0, sigma_esc_min: float = 0.2,
+                n: int = 401, sigma_esc_max: float = 1.0) -> Tuple[float, float, float]:
+    """
+    Recta del ESC  w = C_R*sigma + w_b  para un autopiloto que manda PWM
+    entre pwm_min (sigma = 0) y pwm_max (sigma = 1) a un ESC que lee PWM en
+    [pwm_lo_esc, pwm_hi_esc] y cuyo motor sigue  w = k_w * sigma_ESC**exp_w.
+
+    Minimos cuadrados sobre los puntos con sigma_ESC entre sigma_esc_min y
+    sigma_esc_max (por debajo de sigma_esc_min el motor no opera en vuelo). Devuelve
+    (C_R, w_b, error relativo maximo del ajuste en %).
+    """
+    xs, ws = [], []
+    for i in range(n):
+        s = i / (n - 1)
+        se = (pwm_min + (pwm_max - pwm_min) * s - pwm_lo_esc) / (pwm_hi_esc - pwm_lo_esc)
+        if sigma_esc_min <= se <= min(1.0, sigma_esc_max):
+            xs.append(s)
+            ws.append(k_w * se ** exp_w)
+    if len(xs) < 2:
+        raise ValueError("el rango de PWM del ESC no deja puntos para el ajuste")
+    m = len(xs)
+    sx, sw = sum(xs), sum(ws)
+    sxx = sum(x * x for x in xs)
+    sxw = sum(x * w for x, w in zip(xs, ws))
+    cr = (m * sxw - sx * sw) / (m * sxx - sx * sx)
+    wb = (sw - cr * sx) / m
+    err = max(abs(cr * x + wb - w) / w for x, w in zip(xs, ws)) * 100.0
+    return cr, wb, err
+
+
+_ARDU_SOURCE = (
+    "Masa pesada: 424 g sin bateria + 246 g de bateria (2 x 2S 2200 mAh en serie, "
+    "planas y apiladas sobre el porta-bateria). Inercias de los CAD de Fusion "
+    "(bastidor, caja y tapa de la BeagleBone, porta-bateria, BeagleBone Blue) con "
+    "densidad efectiva de impresion (ABS, cascara 0.8/1.9 mm, relleno 30 %), mas "
+    "motores, helices, ESC 4 en 1 de 5.4 g en el alojamiento del bastidor, 4 "
+    "espaciadores M3 x 35 mm, tornilleria y cables (31.1 g que cierran la masa "
+    "medida); el ensamble de Fusion y un modelo independiente en Python coinciden "
+    "en 0.25 %. Brazo 0.150 m (diagonal de 300 mm, del CAD). Rotor: T-Motor F40 "
+    "PRO IV 2400 KV con T5146 tripala (16 V) y FlashHobby K2306.5 2300 KV, "
+    "escalados a 2300 KV y 15 V. Bastidor X estandar de ArduCopter "
+    "(FRAME_CLASS = 1, FRAME_TYPE = 1), mismo orden de motores que PX4. "
+    "sigma = salida de motor de ArduPilot: 0 -> 1000 us, 1 -> 1500 us "
+    "(MOT_PWM_MIN/MAX del .param)."
+)
+
+_ARDU_CAVEATS = (
+    "Motor representativo (el real no tiene referencia): empuje con +-20 %. La "
+    "BeagleBone Blue envia PWM normal (la unica salida que genera); el rango de PWM que usa el ESC no esta "
+    "confirmado (ver esc_map_fit y la variante BLHeli_S). Zona muerta 0.10 "
+    "supuesta. Arrastre del fuselaje y amortiguamiento rotacional escalados desde "
+    "el PAE-X450 por tamano (supuestos, a corregir con un registro .bin). Centro "
+    "de masa a 1.1 mm hacia el ESC y 0.8 mm bajo la cara inferior del bastidor "
+    "(se desprecia); productos de inercia < 2e-6 kg m^2, despreciados. Jxx va a "
+    "lo largo de las baterias (eje x del CAD, hacia el ESC): si el frente de "
+    "vuelo no es ese eje, Jxx y Jyy se intercambian (diferencia de 10 %). "
+    "Dimensiones de cada bateria tipicas, no medidas."
+)
+
+
+#: Limite superior (sigma_ESC) de la banda en que with_pwm_range ajusta la recta.
+PWM_REFIT_SIGMA_ESC_MAX = 0.6
+
+
+def with_pwm_range(p: VehicleParams, pwm_min: float, pwm_max: float) -> VehicleParams:
+    """
+    El mismo vehiculo con sigma = salida de un autopiloto que manda PWM entre
+    pwm_min (sigma = 0) y pwm_max (sigma = 1): recalcula la recta del ESC con
+    esc_map_fit() sobre la curva del motor y mantiene en el mismo PWM la zona
+    muerta del ESC. Si el vehiculo no tiene curva del motor o el rango ya es
+    ese, lo devuelve sin cambios.
+
+    La recta se ajusta en la banda de operacion sigma_ESC = 0.2..0.6 (PWM de
+    1200 a 1600 us con un ESC de 1000-2000 us): error < 4 % ahi y estacionario
+    a 5 us del de la curva. Por encima de la banda la recta sobrestima la
+    velocidad (11 % a 2000 us); ajustarla en todo el rango daria 10 % de error
+    en el estacionario.
+    """
+    if p.motor_curve is None or p.sigma_pwm is None:
+        return p
+    if abs(p.sigma_pwm[0] - pwm_min) < 1e-9 and abs(p.sigma_pwm[1] - pwm_max) < 1e-9:
+        return p
+    if not pwm_max > pwm_min:
+        raise ValueError("pwm_max debe ser mayor que pwm_min")
+    k_w, exp_w, lo_esc, hi_esc = p.motor_curve
+    cr, wb, err = esc_map_fit(k_w, exp_w, lo_esc, hi_esc, pwm_min, pwm_max,
+                              sigma_esc_max=PWM_REFIT_SIGMA_ESC_MAX)
+    lo0, hi0 = p.sigma_pwm
+    pwm_dead = lo0 + p.min_throttle * (hi0 - lo0)
+    min_thr = max(0.0, (pwm_dead - pwm_min) / (pwm_max - pwm_min))
+    return replace(p, esc_Cr=cr, esc_wb=wb, min_throttle=min_thr,
+                   sigma_pwm=(float(pwm_min), float(pwm_max)),
+                   caveats=p.caveats + (f" Salida del autopiloto de {pwm_min:g} a {pwm_max:g} us: "
+                                        f"recta del ESC recalculada en la banda de operacion "
+                                        f"(C_R = {cr:.1f}, w_b = {wb:.1f}, error < {err:.1f} %; "
+                                        f"sobrestima la velocidad por encima de "
+                                        f"sigma_ESC = {PWM_REFIT_SIGMA_ESC_MAX:g})."))
+
+
+def _arducopter(key: str, prop: str, pwm_lo_esc: int, pwm_hi_esc: int,
+                esc_Cr: float, esc_wb: float, name_extra: str = "",
+                short_extra: str = "") -> VehicleParams:
+    """Variante del dron ArduCopter. C_R y w_b van fijos (trazables en el
+    catalogo); tests/test_arducopter.py comprueba que coinciden con
+    esc_map_fit() para el rango de PWM indicado."""
+    if prop == "5046":
+        d = dict(mass=0.670, Jxx=2.65e-3, Jyy=2.95e-3, Jzz=5.06e-3,
+                 Ct=1.618e-6, Cm=1.80e-8, Jm=5.72e-6, Tm=0.019)
+        extra = ""
+    else:
+        d = dict(mass=0.6744, Jxx=2.71e-3, Jyy=3.01e-3, Jzz=5.17e-3,
+                 Ct=2.735e-6, Cm=3.27e-8, Jm=8.64e-6, Tm=0.027)
+        extra = (" Helice 6045 tripala: +4.4 g (5.5 g c/u); Ct y Cm escalados desde la "
+                 "5046 con la comparacion GF5143/GF6045 del K2306.5 (+-25 %).")
+    return VehicleParams(
+        key=key,
+        name=(f"ArduCopter BeagleBone Blue (X 300 mm, {d['mass']:.3f} kg, "
+              f"hélice {prop}{name_extra})"),
+        short_name=f"ArduCopter {prop}{short_extra}",
+        source=_ARDU_SOURCE,
+        caveats=(_ARDU_CAVEATS + extra +
+                 f" Mapa del ESC para un rango de {pwm_lo_esc}-{pwm_hi_esc} us "
+                 "(ajuste lineal de la curva del motor, error < 2.5 %)."),
+        frame="x", arm=0.150,
+        esc_Cr=esc_Cr, esc_wb=esc_wb, min_throttle=0.10, blades=3,
+        motor_curve=(ARDU_MOTOR_K_W * (ARDU_RATIO_W_6045 if prop == "6045" else 1.0),
+                     ARDU_MOTOR_EXP_W, float(pwm_lo_esc), float(pwm_hi_esc)),
+        sigma_pwm=(1000.0, 1500.0),
+        # INS_GYRO_FILTER = 75 Hz del .param, aplicado por ArduPilot a la tasa
+        # del sensor (MPU-9250): quita el repliegue del paso de pala (480 Hz)
+        imu_antialias_hz=75.0,
+        cd_quad_xy=0.024, cd_quad_z=0.024, cd_lin=0.0,
+        cm_damp=(0.00046, 0.00051, 0.00044),
+        **d,
+    )
+
+
+#: Variante principal: helice 5046 tripala, ESC con rango de 1000-2000 us.
+ARDUCOPTER_BBBLUE = _arducopter("arducopter_bbblue", "5046", 1000, 2000,
+                                1221.4, 416.1)
+#: Helice 6045 tripala (cambio posible en el mismo dron), ESC de 1000-2000 us.
+ARDUCOPTER_BBBLUE_6045 = _arducopter("arducopter_bbblue_6045", "6045", 1000, 2000,
+                                     1080.9, 368.2)
+#: Helice 5046 con ESC BLHeli_S sin calibrar en PWM (rango de fabrica 1148-1832 us).
+ARDUCOPTER_BBBLUE_BLHELI_S = _arducopter("arducopter_bbblue_blheli_s", "5046", 1148, 1832,
+                                         1773.9, -104.1, ", ESC BLHeli_S", " BLHeli_S")
+
+#: Rango de PWM del ESC supuesto en cada variante (para esc_map_fit y pruebas).
+ARDUCOPTER_ESC_RANGES = {
+    "arducopter_bbblue": ("5046", 1000, 2000),
+    "arducopter_bbblue_6045": ("6045", 1000, 2000),
+    "arducopter_bbblue_blheli_s": ("5046", 1148, 1832),
+}
+
 VEHICLES: Dict[str, VehicleParams] = {
-    v.key: v for v in (PAE_X450, JIRINEC_PLUS, LUUKKONEN, KAYLION, HUMMINGBIRD)
+    v.key: v for v in (PAE_X450, JIRINEC_PLUS, LUUKKONEN, KAYLION, HUMMINGBIRD,
+                       ARDUCOPTER_BBBLUE, ARDUCOPTER_BBBLUE_6045,
+                       ARDUCOPTER_BBBLUE_BLHELI_S)
 }
 DEFAULT_VEHICLE = "pae_x450"
 

@@ -98,14 +98,19 @@ class QuadrotorDynamics:
         self._sp = tuple(float(r.spin) for r in self.rotors)
 
     # ------------------------------------------------------------------
-    def derivative(self, x: Sequence[float], sigma: Sequence[float],
-                   env: Environment) -> List[float]:
+    def propulsion_terms(self, x: Sequence[float], sigma: Sequence[float],
+                         env: Environment):
+        """
+        Propulsor y sus efectos sobre el cuerpo, comunes al vuelo libre y al
+        banco de rotula (quadsim.bench):
+          dOm      derivada de la velocidad de cada rotor
+          thrust   empuje total [N] (con efecto suelo si esta activo)
+          tau      momentos de los rotores sobre el centro de masa, en {B}
+          h_z      momento angular de los rotores (componente z_B)
+          dh_z     su derivada
+        """
         p = self.p
-        q = (x[6], x[7], x[8], x[9])
-        wx, wy, wz = x[10], x[11], x[12]
         Om = x[13:17]
-
-        # --- propulsor -----------------------------------------------------
         Tm = p.Tm
         dOm = [0.0] * 4
         T = [0.0] * 4
@@ -145,6 +150,17 @@ class QuadrotorDynamics:
         Jm = p.Jm
         h_z = -Jm * (sp[0] * Om[0] + sp[1] * Om[1] + sp[2] * Om[2] + sp[3] * Om[3])
         dh_z = -Jm * (sp[0] * dOm[0] + sp[1] * dOm[1] + sp[2] * dOm[2] + sp[3] * dOm[3])
+        return dOm, thrust, (tau_x, tau_y, tau_z), h_z, dh_z
+
+    def derivative(self, x: Sequence[float], sigma: Sequence[float],
+                   env: Environment) -> List[float]:
+        p = self.p
+        q = (x[6], x[7], x[8], x[9])
+        wx, wy, wz = x[10], x[11], x[12]
+
+        # --- propulsor -----------------------------------------------------
+        dOm, thrust, (tau_x, tau_y, tau_z), h_z, dh_z = \
+            self.propulsion_terms(x, sigma, env)
 
         # --- aerodinamica ----------------------------------------------------
         R = m3.q_to_rot(q)
