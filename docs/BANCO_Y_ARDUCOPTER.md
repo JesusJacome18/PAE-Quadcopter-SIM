@@ -289,19 +289,85 @@ sim = Simulation(SimConfig(vehicle="arducopter_bbblue", ctrl_hz=prm.loop_rate_hz
                            bench=BenchConfig(enabled=True)))
 ```
 
-## 5. Lo que falta para comparar con el dron real
+## 5. Primer registro del banco (prueba del 14 de noviembre de 2026)
 
-- **Registro `.bin` de una prueba en el banco.** Da el `RCOU` de estacionario (rango del ESC), las
-  respuestas de actitud para ajustar el arrastre, el amortiguamiento y la fricción de la rótula,
-  y la vibración real (`INS_LOG_BAT_MASK`).
-- **Rótula:** tope de inclinación (la guiñada ya se confirmó libre) y, si se puede, una
-  prueba de caída libre sin motores para medir la fricción.
+Registro `00000003.BIN` del compañero (36 MB) y el `.param` extraído de él. ArduCopter V4.7.1
+(dbe79216), modo Stabilize. El registro tiene unos 25 minutos; casi todo es la prueba de motores
+de Mission Planner con el dron desarmado. **El dron estuvo armado 55 s** (de 1711.9 a 1767.2 s
+desde el arranque de la placa). Se analizó con `python -m sim2real banco` y `comparar`.
+
+### Cambios del `.param` frente al del 29 de octubre
+
+| Parámetro | 29 oct | 14 nov | Efecto en QuadSim |
+|---|---|---|---|
+| `SCHED_LOOP_RATE` | 400 | **300** | lazo de control a 300 Hz (física a 900 Hz) |
+| `MOT_PWM_MAX` | 1500 | **2000** | σ = 1 ahora es 2000 µs: `with_pwm_range` recalcula el ESC |
+| `MOT_PWM_TYPE` | 5 (DShot300) | **0 (Normal)** | sin efecto: la placa ya mandaba PWM |
+| `MOT_SPIN_MIN` / `MOT_SPIN_ARM` | 0.15 / 0.10 | **0.12 / 0.08** | curva de empuje |
+| `LOG_BITMASK` | 180222 | **669434** | agrega IMU_RAW (bit 19); **sigue sin ATTITUDE_FAST** |
+| `FS_GCS_ENABLE` | 0 | **1** | sin efecto en la simulación |
+| `FLTMODE2/3/5`, `6` | Stabilize | AltHold, Land | el registro es todo en Stabilize |
+
+`MOT_PWM_MAX` = 2000 duplica cuánto cambia el PWM por unidad de salida del controlador. Para
+seguir usando σ = salida de ArduPilot, `quadsim/vehicles.with_pwm_range` recalcula la recta del ESC
+desde la curva del motor en la banda de 1200 a 1600 µs (error < 4 %; estacionario a 5 µs del de
+la curva). La simulación lo aplica sola con la ley de ArduPilot.
+
+### Qué sirve del registro
+
+- **`GYR` y `ACC` crudos a ~1.1 kHz** (IMU_RAW): dan la dinámica real de las tasas.
+- **`ANG`, `RATE`, `PID*`, `RCIN`, `RCOU`, `CTUN` a 10 Hz**: falta otra vez el bit 0 de
+  `LOG_BITMASK`. No sirven para repetir el PID (`replay_rate_pid` avisa) ni para ver la salida de
+  los motores dentro de cada movimiento. Valor correcto: **669435**.
+- Vibración (`VIBE`): 1 a 4 m/s² con acelerador bajo y hasta 11 m/s² en el tramo más agresivo,
+  sin recortes del acelerómetro.
+
+### Hallazgos
+
+1. **Tope de la rótula ≈ 32°.** Mediana de la inclinación en reposo: 31.8° (10 % – 90 %: 31.4° –
+   34.6°). El compañero había dicho 30°. Las diferencias entre lados pueden ser holgura o la placa
+   no del todo nivelada.
+2. **El dron pasó el 97 % del tiempo armado apoyado en el tope.** Nunca se equilibró: solo salió
+   del tope en giros cortos y violentos (hasta 200 °/s) cuando se subió el acelerador.
+3. **Los motores no tuvieron la autoridad que predice el modelo.** Con el dron quieto en el tope
+   hubo tramos de casi un segundo con dos motores en ~1540 µs y dos en ~1120 µs, en la dirección
+   que lo levanta; según el modelo eso es 5.7 veces el momento de la gravedad (debía salir del tope
+   en décimas de segundo) y el dron no se movió (por ejemplo, de 1371.2 a 1371.6 s). La salida del
+   PID de roll o pitch estaba saturada (|ROut| o |POut| ≈ 1 a 1.5) casi todo el tiempo.
+4. **Con el empuje del modelo, QuadSim no reproduce el ensayo.** Repitiendo las palancas y el
+   acelerador del registro, con empuje completo el dron simulado sale del tope y gira a 130 °/s
+   (percentil 95), y solo el 85 % del tiempo está en el tope. Con el empuje de la física reducido
+   al 5 – 15 % (`--escala-empuje`), el dron simulado se queda en el tope todo el tiempo, como el
+   real, y la correlación del alabeo con el real pasa de −0.4 a valores entre 0.3 y 0.7. Con empuje invertido (hélices al revés) el
+   simulado gira mucho más rápido que el real (300 – 600 °/s).
+
+**Lectura:** en esta prueba los motores dieron mucho menos momento de alabeo y cabeceo del que
+corresponde a sus PWM (al menos 6 veces menos), o algo retuvo el dron en el tope. Con estos
+datos no se puede decidir entre causas. Las que hay que revisar en el dron, de la más probable a la
+menos:
+- hélices: que cada una sea la de su sentido de giro (M1 y M2 antihorario, M3 y M4 horario, vistas
+  desde arriba, en el bastidor X de ArduCopter) y que no estén montadas al revés;
+- alimentación: si se usó la fuente de banco de 15 V, su límite de corriente (cuatro motores de
+  este tamaño piden decenas de amperios); si fue la batería, su carga;
+- orden de los motores y sentido de giro (prueba de motores de Mission Planner, motor por motor);
+- algo que frene la rótula o que tire del dron (cables, tope que agarra).
+
+Una prueba de empuje con una balanza de cocina, un motor a la vez a 1300, 1400 y 1500 µs, lo
+resuelve: según el modelo, a 1500 µs cada motor empuja unos 430 g.
+
+## 6. Lo que falta para comparar con el dron real
+
+- **Resolver la falta de empuje de la sección 5** y repetir el ensayo con el dron equilibrado
+  fuera del tope (acelerador suficiente, movimientos cortos de palanca).
+- **Rótula:** el tope medido es ≈ 32°. Falta, si se puede, una prueba de caída libre sin motores
+  para medir la fricción.
 - **ESC:** modelo y firmware (BLHeli_S, BLHeli_32 o AM32).
 - **Motor:** modelo real o una prueba de empuje de un motor.
 - **Ganancias SIMC para el banco:** calcularlas con la inercia alrededor del pivote y la rigidez
   de la gravedad, para que el banco no castigue a las de vuelo libre.
-- **`LOG_BITMASK` con `ATTITUDE_FAST`.** El `.param` del 29 de octubre tiene 180222: sin el bit 0,
-  ArduCopter 4.7 registra ANG, RATE y los PID a 10 Hz y la comparación con el simulador no sirve.
-  Con 180223 quedan a la tasa del lazo (400 Hz). Ver [`SIM2REAL.md`](SIM2REAL.md).
-- **Versión exacta del firmware** (Mission Planner la muestra al conectar): el compañero dijo
-  «V4.71»; la ley de ArduPilot sigue a la 4.7.2, igual a la 4.7.1 en el control.
+- **`LOG_BITMASK` con `ATTITUDE_FAST`.** Ni el `.param` del 29 de octubre (180222) ni el del
+  14 de noviembre (669434) tienen el bit 0: ArduCopter 4.7 registra ANG, RATE y los PID a 10 Hz.
+  Con el valor actual más 1 (**669435**) quedan a la tasa del lazo y se conserva el giroscopio
+  crudo. Ver [`SIM2REAL.md`](SIM2REAL.md).
+- Versión del firmware: el registro confirma ArduCopter V4.7.1; la ley de ArduPilot sigue a la
+  4.7.2, igual a la 4.7.1 en el control.

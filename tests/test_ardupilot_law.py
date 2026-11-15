@@ -304,3 +304,22 @@ def test_quadsim_law_unchanged():
     assert s.ap_ctrl is None
     _, r = _roll_step(s, t_end=1.5)
     assert abs(r[-1] - 10.0) < 3.0
+
+
+def test_param_with_full_pwm_range_and_300hz():
+    """.param del 14 de noviembre: MOT_PWM_MAX 2000, SCHED_LOOP_RATE 300."""
+    d = read_param_file(PARAM)
+    d.update({"MOT_PWM_MAX": 2000, "SCHED_LOOP_RATE": 300, "MOT_SPIN_MIN": 0.12,
+              "MOT_SPIN_ARM": 0.08})
+    prm = ArduPilotParams.from_dict(d)
+    c = SimConfig(vehicle=VEH, ctrl_hz=prm.loop_rate_hz, attitude_law="ardupilot",
+                  ardupilot=prm)
+    c.bench = BenchConfig(enabled=True, initial_roll_deg=5.0)
+    s = Simulation(c)
+    assert s.nominal.sigma_pwm == (1000.0, 2000.0)
+    # el acelerador que da el peso deja los motores cerca de 1240 us
+    thr = s.ardupilot_throttle(s.nominal.weight)
+    pwm = s.ap_ctrl.pwm(s.ap_ctrl.thrust_to_actuator(thr))
+    assert 1230 < pwm < 1250
+    t, r = _roll_step(s)
+    assert all(8.5 < v < 11.5 for ti, v in zip(t, r) if ti > 2.5)

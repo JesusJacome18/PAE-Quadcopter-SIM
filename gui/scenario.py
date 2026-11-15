@@ -66,7 +66,7 @@ from quadsim.control.tuning import suggest_attitude_gains
 from quadsim.disturbances import (DisturbanceConfig, MagEMIConfig, MotorFault, PayloadEvent,
                                   WindConfig)
 from quadsim.simulator import ATTITUDE_LAWS, FilterStage
-from quadsim.vehicles import VEHICLES, get_vehicle
+from quadsim.vehicles import VEHICLES, get_vehicle, with_pwm_range
 
 from . import registry
 from .about import APP_NAME, APP_VERSION
@@ -482,7 +482,9 @@ def _build_config(scen: dict):
         if cfg.attitude_law == "ardupilot":
             # con la ley de ArduPilot la simulacion arranca con las ganancias
             # de sus parametros: "simc" se pide explicitamente
-            sg = suggest_attitude_gains(get_vehicle(cfg.vehicle), 1.0 / cfg.ctrl_hz)
+            veh = with_pwm_range(get_vehicle(cfg.vehicle), cfg.ardupilot.pwm_min,
+                                 cfg.ardupilot.pwm_max)
+            sg = suggest_attitude_gains(veh, 1.0 / cfg.ctrl_hz)
             gains = {ax: {"angle_kp": sg[ax]["angle"]["kp"], "rate_kp": sg[ax]["rate"]["kp"],
                           "rate_ki": sg[ax]["rate"]["ki"], "rate_kd": sg[ax]["rate"]["kd"]}
                      for ax in AXES}

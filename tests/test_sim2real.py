@@ -142,3 +142,41 @@ def test_report_and_cli(fast_log, tmp_path):
     res = subprocess.run([sys.executable, "-m", "sim2real", "info", fast_log], cwd=ROOT,
                          capture_output=True, text=True, timeout=120)
     assert res.returncode == 0 and "RATE" in res.stdout and "LOG_BITMASK = 180223" in res.stdout
+
+
+def _stop_log(path, ct_scale):
+    """Dron apoyado en el tope sin acelerador 2 s; despues acelerador 0.12. Con
+    ct_scale < 1 la fisica tiene menos empuje que el modelo (helices malas)."""
+    import dataclasses
+    from quadsim.bench import BenchDynamics
+    d = read_param_file(PARAM)
+    d.update({"MOT_PWM_MAX": 2000, "SCHED_LOOP_RATE": 300})
+    prm = ArduPilotParams.from_dict(d, "sintetico")
+    c = SimConfig(vehicle="arducopter_bbblue", ctrl_hz=300.0, attitude_law="ardupilot",
+                  ardupilot=prm, seed=3)
+    c.bench = BenchConfig(enabled=True, initial_roll_deg=31.0, tilt_limit_deg=32.0)
+    s = Simulation(c)
+    s.p = dataclasses.replace(s.p, Ct=s.p.Ct * ct_scale)
+    s.dyn = BenchDynamics(s.p, c.bench)
+    record_simulation(s, str(path), 5.0, d, throttle_fn=lambda t: 0.0 if t < 2.0 else 0.12,
+                      raw_gyro=True)
+    return str(path)
+
+
+def test_bench_authority_flags_missing_thrust(tmp_path):
+    from sim2real.replay import bench_authority, bench_authority_text
+    ok = bench_authority(load(_stop_log(tmp_path / "bien.bin", 1.0)))
+    assert ok.rest_tilt_deg[1] == pytest.approx(32.0, abs=0.5)
+    assert ok.static_ratio_max < 1.5
+    weak = bench_authority(load(_stop_log(tmp_path / "debil.bin", 0.1)))
+    assert weak.on_stop_fraction > 0.95
+    assert weak.static_ratio_max > 3.0
+    assert any("debian levantar" in line for line in bench_authority_text(weak))
+
+
+def test_simulate_log_thrust_scale(fast_log):
+    log = load(fast_log)
+    a = simulate_log(log, t0=0.5, t1=3.0, bench=BenchConfig(enabled=True))
+    b = simulate_log(log, t0=0.5, t1=3.0, bench=BenchConfig(enabled=True), thrust_scale=0.3)
+    assert b.config["escala_de_empuje"] == 0.3
+    assert b.metrics["rms_roll"] > a.metrics["rms_roll"]

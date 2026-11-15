@@ -38,6 +38,7 @@ MESSAGES: Dict[str, Tuple[str, str]] = {
     "RCIN": ("QHHHHHHHHHHHHHH", "TimeUS," + ",".join(f"C{i}" for i in range(1, 15))),
     "RCOU": ("QHHHHHHHHHHHHHH", "TimeUS," + ",".join(f"C{i}" for i in range(1, 15))),
     "IMU": ("QBffffffIIfBBHH", "TimeUS,I,GyrX,GyrY,GyrZ,AccX,AccY,AccZ,EG,EA,T,GH,AH,GHz,AHz"),
+    "GYR": ("QBQfff", "TimeUS,I,SampleUS,GyrX,GyrY,GyrZ"),
 }
 
 
@@ -90,7 +91,7 @@ def write_params(w: DataFlashWriter, params: Dict[str, float], time_us: int = 0)
 
 def record_simulation(sim, path: str, seconds: float, params: Dict[str, float],
                       setpoint_fn=None, throttle_fn=None, rc_fn=None,
-                      log_divider: int = 1, rc_hz: float = 10.0):
+                      log_divider: int = 1, rc_hz: float = 10.0, raw_gyro: bool = False):
     """
     Corre `sim` (Simulation con attitude_law = "ardupilot") `seconds`
     segundos y escribe el .bin como lo haria ArduCopter con LOG_BITMASK que
@@ -99,6 +100,7 @@ def record_simulation(sim, path: str, seconds: float, params: Dict[str, float],
     setpoint_fn(t) -> (roll, pitch, yaw) [rad] o None (sin cambio)
     throttle_fn(t) -> acelerador del piloto (empuje normalizado) o None
     rc_fn(t)       -> 4 PWM de palancas (roll, pitch, throttle, yaw) para RCIN
+    raw_gyro       -> escribe GYR (giroscopio crudo, bit 19 IMU_RAW) en cada ciclo
     """
     ap = sim.ap_ctrl
     if ap is None:
@@ -146,6 +148,8 @@ def record_simulation(sim, path: str, seconds: float, params: Dict[str, float],
                 rc = list(rc_fn(t)) if rc_fn is not None else [1500, 1500, 1000, 1500]
                 w.write("RCIN", tu, *([int(v) for v in rc] + [1500] * (14 - len(rc))))
                 w.write("ATT", tu, dr, r, dp, pi, dy % 360.0, y % 360.0, 0)
+            if raw_gyro and sim.last_imu is not None:
+                w.write("GYR", tu, 0, tu, *sim.last_imu.gyro)
             if k % imu_every == 0 and sim.last_imu is not None:
                 im = sim.last_imu
                 w.write("IMU", tu, 0, *im.gyro, *im.accel, 0, 0, 25.0, 1, 1,

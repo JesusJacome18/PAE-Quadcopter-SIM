@@ -182,7 +182,8 @@ class SimReplay:
 
 def simulate_log(log: BinLog, vehicle: str = "arducopter_bbblue", t0: float = None,
                  t1: float = None, bench: Optional[BenchConfig] = None,
-                 setpoints: str = "auto", seed: int = 1) -> SimReplay:
+                 setpoints: str = "auto", seed: int = 1,
+                 thrust_scale: float = 1.0) -> SimReplay:
     """
     Repite en QuadSim el tramo [t0, t1] del registro. `bench` = None ->
     vuelo libre; un BenchConfig -> sobre la rotula (la actitud inicial se
@@ -197,6 +198,9 @@ def simulate_log(log: BinLog, vehicle: str = "arducopter_bbblue", t0: float = No
              deja hasta 0.1 s de incertidumbre en el instante de cada
              movimiento de palanca.
       "auto" "ang" si ANG esta a la tasa del lazo; si no, "rcin".
+    `thrust_scale` multiplica el empuje de las helices en la fisica (no en el
+    controlador): sirve para probar la hipotesis "el empuje real es k veces el
+    del modelo" (k < 0 = empuje invertido, helices al reves).
     """
     warns = list(log.log_bitmask_report())
     prm = params_from_log(log)
@@ -231,6 +235,13 @@ def simulate_log(log: BinLog, vehicle: str = "arducopter_bbblue", t0: float = No
         cfg.start_airborne = True
         cfg.start_alt = 1.5
     sim = Simulation(cfg)
+    if thrust_scale != 1.0:
+        from dataclasses import replace as _replace
+        from quadsim.bench import BenchDynamics
+        from quadsim.dynamics import QuadrotorDynamics
+        sim.p = _replace(sim.p, Ct=sim.p.Ct * thrust_scale)
+        sim.dyn = (BenchDynamics(sim.p, cfg.bench) if sim.bench_on
+                   else QuadrotorDynamics(sim.p))
     from quadsim import math3d as m3
     if bench is None:
         from quadsim.dynamics import IQ
@@ -288,6 +299,13 @@ def simulate_log(log: BinLog, vehicle: str = "arducopter_bbblue", t0: float = No
         for k, f in (("p", "R"), ("q", "P"), ("r", "Y"), ("rout", "ROut"), ("pout", "POut"),
                      ("yout", "YOut")):
             R[k] = log.at("RATE", f, tt, hold=False)
+    if log.has("GYR") and log.rate_hz("GYR") > 2.0 * log.rate_hz("RATE"):
+        # giroscopio crudo (IMU_RAW), mas rapido que RATE: es la referencia
+        # de las tasas. Se filtra igual que en el autopiloto (INS_GYRO_FILTER)
+        # para comparar con las tasas filtradas del simulador.
+        for k, f in (("p", "GyrX"), ("q", "GyrY"), ("r", "GyrZ")):
+            R[k] = np.degrees(_lowpass2(log.t("GYR"), log.get("GYR", f), prm.gyro_filter_hz,
+                                        tt))
     if log.has("RCOU"):
         for j in range(4):
             R[f"m{j + 1}"] = log.at("RCOU", f"C{j + 1}", tt)
@@ -301,8 +319,22 @@ def simulate_log(log: BinLog, vehicle: str = "arducopter_bbblue", t0: float = No
         met["rms_yaw"] = float(np.sqrt(np.mean(d ** 2)))
     conf = {"vehiculo": vehicle, "desde_s": float(t0), "hasta_s": float(t1),
             "banco": bench is not None, "referencias": setpoints,
-            "lazo_hz": cfg.ctrl_hz, "parametros": prm.source}
+            "lazo_hz": cfg.ctrl_hz, "parametros": prm.source,
+            "escala_de_empuje": thrust_scale}
     return SimReplay(tt, R, S, met, warns, conf)
+
+
+def _lowpass2(t: np.ndarray, x: np.ndarray, fc: float, tt: np.ndarray) -> np.ndarray:
+    """Butterworth de 2.o orden (LowPassFilter2p) a la tasa propia de la serie,
+    evaluado en los instantes tt."""
+    from quadsim.filters import Biquad
+    fs = 1.0 / float(np.median(np.diff(t)))
+    if not fc > 0 or fc >= 0.45 * fs:
+        return np.interp(tt, t, x)
+    bq = Biquad(fs, "butterworth", fc)
+    bq.reset(float(x[0]))
+    y = np.fromiter((bq.process(float(v)) for v in x), float, len(x))
+    return np.interp(tt, t, y)
 
 
 def _first_armed(log: BinLog, default: float) -> float:
@@ -312,6 +344,121 @@ def _first_armed(log: BinLog, default: float) -> float:
         if len(i):
             return max(float(t[i[0]]), log.t("ANG")[0])
     return float(default)
+
+
+# ---------------------------------------------------------------------------
+# 3) diagnostico del banco: autoridad de los motores frente a la gravedad
+# ---------------------------------------------------------------------------
+@dataclass
+class BenchAuthority:
+    t: np.ndarray                 # instantes de RCOU en el tramo
+    tilt_deg: np.ndarray          # inclinacion total (ATT)
+    rate_dps: np.ndarray          # |(p, q)| filtrado [grados/s]
+    ratio: np.ndarray             # momento de los motores / momento de la gravedad
+    rest_tilt_deg: Tuple[float, float, float]   # p10, mediana, p90 en reposo
+    on_stop_fraction: float
+    static_ratio_max: float       # mayor razon con el dron quieto en el tope
+    static_ratio_p90: float
+    worst: List[Tuple[float, List[int], float, float]]   # (t, PWM, inclinacion, razon)
+    stop_found: bool = True       # False: el dron casi no se apoyo en el tope
+
+
+def bench_authority(log: BinLog, vehicle: str = "arducopter_bbblue", t0: float = None,
+                    t1: float = None, pivot_mm: float = 40.7, stop_margin_deg: float = 1.5,
+                    still_dps: float = 5.0, tilt_limit_deg: float = 30.0) -> BenchAuthority:
+    """
+    Con el dron en la rotula: para cada muestra de RCOU calcula, con el
+    modelo del motor de QuadSim, el momento de los cuatro motores proyectado
+    en la direccion que levanta el dron del tope, y lo divide por el momento
+    de la gravedad (m g d sen(inclinacion)). Una razon mayor que 1 con el
+    dron quieto en el tope quiere decir que, segun el modelo, los motores
+    debian sacarlo de ahi: el empuje real es menor que el del modelo o algo
+    retiene el dron (friccion, cables, tope).
+
+    El tope se estima como la inclinacion tipica de las muestras quietas y
+    muy inclinadas; si casi no las hay se usa tilt_limit_deg. "Quieto" = tasa
+    media en 0.3 s menor que still_dps.
+
+    RCOU llega a 10 Hz: este diagnostico solo usa tramos en que el dron esta
+    quieto en el tope con los mismos PWM varias muestras seguidas, que no
+    dependen de lo que pase entre muestras.
+    """
+    from quadsim.vehicles import get_vehicle, with_pwm_range
+    from quadsim.propulsion import esc_steady_speed
+    prm = params_from_log(log)
+    veh = with_pwm_range(get_vehicle(vehicle), prm.pwm_min, prm.pwm_max)
+    for m in ("RCOU", "ATT"):
+        if not log.has(m):
+            raise ValueError(f"el registro no tiene mensajes {m}")
+    t = log.t("RCOU")
+    sel = np.ones_like(t, dtype=bool)
+    if t0 is not None:
+        sel &= t >= t0
+    if t1 is not None:
+        sel &= t <= t1
+    t = t[sel]
+    pwm = np.column_stack([log.get("RCOU", f"C{i}")[sel] for i in range(1, 5)])
+    sig = (pwm - prm.pwm_min) / (prm.pwm_max - prm.pwm_min)
+    w = np.vectorize(lambda x: esc_steady_speed(veh, float(x)))(sig)
+    T = veh.Ct * w ** 2
+    pos = np.array([[r.x, r.y] for r in veh.rotors])
+    tau_x = -(T * pos[:, 1]).sum(axis=1)
+    tau_y = (T * pos[:, 0]).sum(axis=1)
+    r = np.radians(log.at("ATT", "Roll", t, hold=False))
+    q = np.radians(log.at("ATT", "Pitch", t, hold=False))
+    mg = veh.mass * 9.80665
+    d = pivot_mm / 1000.0
+    gx, gy = d * mg * np.sin(r) * np.cos(q), d * mg * np.sin(q)   # momento de la gravedad
+    g2 = np.maximum(gx * gx + gy * gy, 1e-12)
+    ratio = -(tau_x * gx + tau_y * gy) / g2
+    tilt = np.degrees(np.arccos(np.clip(np.cos(r) * np.cos(q), -1.0, 1.0)))
+    if log.has("GYR"):
+        tg, wx, wy = log.t("GYR"), log.get("GYR", "GyrX"), log.get("GYR", "GyrY")
+    else:
+        tg, wx, wy = (log.t("RATE"), np.radians(log.get("RATE", "R")),
+                      np.radians(log.get("RATE", "P")))
+    cx, cy = np.cumsum(np.r_[0.0, wx]), np.cumsum(np.r_[0.0, wy])
+    lo = np.searchsorted(tg, t - 0.15)
+    hi = np.searchsorted(tg, t + 0.15)
+    n = np.maximum(hi - lo, 1)
+    rate = np.degrees(np.hypot((cx[hi] - cx[lo]) / n, (cy[hi] - cy[lo]) / n))
+    # tope: inclinacion de las muestras quietas y muy inclinadas (> 20 grados)
+    rest = (rate < 2.0) & (tilt > 20.0)
+    found = rest.sum() >= max(5, 0.05 * len(t))
+    if found:
+        p10, med, p90 = (float(v) for v in np.percentile(tilt[rest], [10, 50, 90]))
+    else:
+        p10 = med = p90 = float(tilt_limit_deg)
+    on_stop = tilt > med - stop_margin_deg
+    static = on_stop & (rate < still_dps) & (pwm.max(axis=1) > prm.pwm_min + 100)
+    sr = ratio[static]
+    order = np.argsort(sr)[::-1][:5]
+    idx = np.nonzero(static)[0][order]
+    worst = [(float(t[i]), [int(v) for v in pwm[i]], float(tilt[i]), float(ratio[i]))
+             for i in idx]
+    return BenchAuthority(t, tilt, rate, ratio, (p10, med, p90), float(on_stop.mean()),
+                          float(sr.max()) if len(sr) else 0.0,
+                          float(np.percentile(sr, 90)) if len(sr) else 0.0, worst, found)
+
+
+def bench_authority_text(a: BenchAuthority) -> List[str]:
+    """Resumen legible del diagnostico del banco."""
+    p10, med, p90 = a.rest_tilt_deg
+    if a.stop_found:
+        out = [f"Inclinacion en reposo (tope de la rotula): mediana {med:.1f} grados "
+               f"(10 % - 90 %: {p10:.1f} - {p90:.1f})."]
+    else:
+        out = [f"El dron casi no se apoyo en el tope; se toma el tope en {med:.1f} grados."]
+    out.append(f"Tiempo apoyado en el tope: {100 * a.on_stop_fraction:.0f} %.")
+    out.append(f"Momento de los motores / momento de la gravedad con el dron quieto en el "
+               f"tope (modelo de QuadSim): maximo {a.static_ratio_max:.1f}, percentil 90 "
+               f"{a.static_ratio_p90:.1f}.")
+    if a.static_ratio_max > 1.5:
+        out.append("  Segun el modelo, los motores debian levantar el dron del tope y no lo "
+                   "hicieron: el empuje real es menor que el del modelo o algo lo retiene.")
+        for t, pwm, tilt, r in a.worst[:3]:
+            out.append(f"    t = {t:.2f} s, PWM {pwm}, inclinacion {tilt:.1f}, razon {r:.1f}")
+    return out
 
 
 # ---------------------------------------------------------------------------

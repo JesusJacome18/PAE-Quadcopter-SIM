@@ -193,3 +193,24 @@ def test_simc_gains_scale_with_vehicle():
     Kb = pb.max_torque("roll") / pb.Jxx
     ratio = (a["rate"]["kp"] / b["rate"]["kp"]) / (Kb / Ka)
     assert ratio == pytest.approx(1.0, rel=0.05)      # theta casi igual
+
+
+# ---------------------------------------------------- rango de salida del autopiloto
+def test_with_pwm_range():
+    from quadsim.propulsion import esc_inverse
+    from quadsim.vehicles import with_pwm_range
+    p = get_vehicle("arducopter_bbblue")
+    assert p.sigma_pwm == (1000.0, 1500.0) and p.motor_curve[0] == ARDU_MOTOR_K_W
+    assert with_pwm_range(p, 1000, 1500) is p                  # mismo rango: sin cambios
+    q = with_pwm_range(p, 1000, 2000)
+    assert q.sigma_pwm == (1000.0, 2000.0)
+    # mismo motor fisico: el estacionario cae a pocos us del de la curva
+    pwm_hover = 1000 + 1000 * esc_inverse(q, q.omega_hover)
+    pwm_curve = 1000 + 1000 * (q.omega_hover / ARDU_MOTOR_K_W) ** (1 / ARDU_MOTOR_EXP_W)
+    assert abs(pwm_hover - pwm_curve) < 6.0
+    # la zona muerta del ESC queda en el mismo PWM (1050 us)
+    assert 1000 + 1000 * q.min_throttle == pytest.approx(1000 + 500 * p.min_throttle)
+    assert q.Ct == p.Ct and q.mass == p.mass
+    # los vehiculos sin curva del motor no cambian
+    x = get_vehicle("pae_x450")
+    assert with_pwm_range(x, 1000, 2000) is x

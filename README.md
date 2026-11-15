@@ -12,7 +12,7 @@
 <img src="https://img.shields.io/badge/python-3.10%2B-00e5ff?style=flat-square&logo=python&logoColor=white&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/GUI-PySide6%20%2B%20pyqtgraph-00e5ff?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/n%C3%BAcleo-solo%20numpy-00e5ff?style=flat-square&labelColor=05070f"/>
-<img src="https://img.shields.io/badge/pruebas-308%20pasando-7cff6b?style=flat-square&labelColor=05070f"/>
+<img src="https://img.shields.io/badge/pruebas-312%20pasando-7cff6b?style=flat-square&labelColor=05070f"/>
 <img src="https://img.shields.io/badge/f%C3%ADsica-RK4%20%40%201%20kHz-ff2bd6?style=flat-square&labelColor=05070f"/>
 
 <br/><br/>
@@ -155,7 +155,7 @@ original. Los datos son coherentes entre sí: el acelerador de vuelo estacionari
 **4. Construir encima, verificando cada bloque.** Sobre ese núcleo se agregaron sensores con
 vibración real de las hélices, tres estimadores, cinco controladores de posición, perturbaciones,
 barridos automáticos y aprendizaje por refuerzo offline. Ningún resultado se reporta sin
-ejecutarlo: 308 pruebas automáticas y un script de verificación numérica respaldan las
+ejecutarlo: 312 pruebas automáticas y un script de verificación numérica respaldan las
 cifras del documento del modelo.
 
 **5. Pedir que alguien busque los errores.** En octubre de 2026 una revisión técnica
@@ -385,7 +385,7 @@ las pruebas necesitan además `pip install -r requirements-dev.txt` (scipy, matp
 
 ```bash
 # Windows: set PYTHONPATH=.      Linux/macOS: export PYTHONPATH=.
-python -m pytest -q                                   # 308 pruebas (+4 de tiempo de cómputo: PERF_TESTS=1)
+python -m pytest -q                                   # 312 pruebas (+4 de tiempo de cómputo: PERF_TESTS=1)
 python experiments/model_verification.py              # evidencia numérica del modelo (~1 min)
 python experiments/benchmark_controllers.py \
   --trajectories lemniscate circle lemniscate_fast step_waypoints \
@@ -421,7 +421,7 @@ PAE-Quadcopter-SIM/
 ├── models/                   pesos de las políticas RL entrenadas
 ├── docs/                     modelo matemático (PDF/LaTeX), guías, capturas y documentos de registro
 ├── sim2real/                 herramienta aparte: compara un registro .bin de ArduCopter con QuadSim
-└── tests/                    312 pruebas automáticas (4 de tiempo de cómputo, opcionales)
+└── tests/                    316 pruebas automáticas (4 de tiempo de cómputo, opcionales)
 ```
 
 <img src="assets/divider.svg" width="100%"/>

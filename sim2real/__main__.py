@@ -2,10 +2,11 @@
 Linea de comandos de sim2real.
 
     python -m sim2real info REGISTRO.bin
+    python -m sim2real banco REGISTRO.bin [--desde S] [--hasta S] [--pivote-mm 40.7]
     python -m sim2real comparar REGISTRO.bin [--banco] [--desde S] [--hasta S]
                                 [--vehiculo arducopter_bbblue] [--salida CARPETA]
                                 [--referencias auto|ang|rcin]
-                                [--tope 30] [--pivote-mm 40.7]
+                                [--tope 30] [--pivote-mm 40.7] [--escala-empuje 1]
 """
 
 from __future__ import annotations
@@ -39,6 +40,23 @@ def _info(args):
     return 0
 
 
+def _bench(args):
+    from .binlog import load
+    from .replay import bench_authority, bench_authority_text
+    log = load(args.registro)
+    t0, t1 = args.desde, args.hasta
+    if t0 is None and log.has("CTUN"):
+        import numpy as np
+        thi = log.get("CTUN", "ThI")
+        i = np.nonzero(thi > 0)[0]
+        if len(i):
+            t0, t1 = float(log.t("CTUN")[i[0]]), float(log.t("CTUN")[i[-1]])
+    a = bench_authority(log, vehicle=args.vehiculo, t0=t0, t1=t1, pivot_mm=args.pivote_mm)
+    print(f"{log.name}: tramo {t0:.1f} a {t1:.1f} s" if t0 is not None else log.name)
+    print("\n".join(bench_authority_text(a)))
+    return 0
+
+
 def _compare(args):
     from quadsim.bench import BenchConfig
     from quadsim.vehicles import VEHICLES
@@ -54,7 +72,16 @@ def _compare(args):
         bench = BenchConfig(enabled=True, tilt_limit_deg=args.tope,
                             pivot_below_cm_m=args.pivote_mm / 1000.0)
     rep = simulate_log(log, vehicle=args.vehiculo, t0=args.desde, t1=args.hasta,
-                       bench=bench, setpoints=args.referencias)
+                       bench=bench, setpoints=args.referencias,
+                       thrust_scale=args.escala_empuje)
+    if bench is not None:
+        from .replay import bench_authority, bench_authority_text
+        try:
+            a = bench_authority(log, vehicle=args.vehiculo, t0=rep.config["desde_s"],
+                                t1=rep.config["hasta_s"], pivot_mm=args.pivote_mm)
+            rep.warnings.extend(bench_authority_text(a))
+        except ValueError as e:
+            rep.warnings.append(f"Diagnostico del banco: {e}")
     pids = []
     for ax in ("roll", "pitch", "yaw"):
         try:
@@ -90,8 +117,16 @@ def main(argv=None):
     pc.add_argument("--referencias", choices=("auto", "ang", "rcin"), default="auto",
                     help="ang: actitud objetivo del firmware; rcin: palancas del piloto")
     pc.add_argument("--salida", default=None, help="carpeta de resultados")
+    pc.add_argument("--escala-empuje", type=float, default=1.0,
+                    help="multiplica el empuje de la fisica (hipotesis de empuje menor)")
+    pb = sub.add_parser("banco", help="diagnostico del banco: tope y autoridad de los motores")
+    pb.add_argument("registro")
+    pb.add_argument("--vehiculo", default="arducopter_bbblue")
+    pb.add_argument("--pivote-mm", type=float, default=40.7)
+    pb.add_argument("--desde", type=float, default=None)
+    pb.add_argument("--hasta", type=float, default=None)
     args = ap.parse_args(argv)
-    return _info(args) if args.cmd == "info" else _compare(args)
+    return {"info": _info, "comparar": _compare, "banco": _bench}[args.cmd](args)
 
 
 if __name__ == "__main__":

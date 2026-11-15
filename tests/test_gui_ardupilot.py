@@ -177,9 +177,18 @@ def test_scenario_rejects_unknown_law():
     cfg, gains, *_ = _build_config({"config": {"vehiculo": "arducopter_bbblue",
                                                "frecuencia_control_hz": 400,
                                                "ley_actitud": "ardupilot",
+                                               "parametros_ardupilot": {"MOT_PWM_MIN": 1000,
+                                                                        "MOT_PWM_MAX": 1500},
                                                "ganancias": "simc"}})
     # "simc" con la ley de ArduPilot pide las SIMC de forma explicita
     assert gains["roll"]["rate_kp"] == pytest.approx(0.0914, abs=1e-4)
+    # con MOT_PWM_MAX = 2000 la misma salida mueve el doble de PWM: SIMC mas bajas
+    cfg, g2, *_ = _build_config({"config": {"vehiculo": "arducopter_bbblue",
+                                            "frecuencia_control_hz": 400,
+                                            "ley_actitud": "ardupilot",
+                                            "parametros_ardupilot": {"MOT_PWM_MAX": 2000},
+                                            "ganancias": "simc"}})
+    assert g2["roll"]["rate_kp"] < 0.6 * gains["roll"]["rate_kp"]
 
 
 def test_example_13_expected_numbers(app, win):

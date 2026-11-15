@@ -16,8 +16,12 @@ Agrega `pymavlink` (lectura del `.bin`) y `matplotlib` (figuras) a lo que ya usa
 
 ```bat
 python -m sim2real info 00000012.BIN
-python -m sim2real comparar 00000012.BIN --banco --desde 15 --hasta 45
+python -m sim2real banco 00000012.BIN
+python -m sim2real comparar 00000012.BIN --banco --desde 1712 --hasta 1767
 ```
+
+Los tiempos son los del registro (segundos desde que arrancó la placa), los mismos que muestra
+Mission Planner.
 
 `info` lista los mensajes, su tasa, los modos de vuelo y los parámetros que importan, y avisa si
 `LOG_BITMASK` no sirve para comparar.
@@ -41,6 +45,14 @@ Opciones de `comparar`:
 | `--referencias` | `ang` (actitud objetivo del firmware), `rcin` (palancas del piloto) o `auto` |
 | `--vehiculo` | clave del catálogo (`arducopter_bbblue`, `_6045`, `_blheli_s`) |
 | `--salida` | carpeta de resultados |
+| `--escala-empuje` | multiplica el empuje de la física (no el del controlador): prueba la hipótesis «el empuje real es k veces el del modelo»; k < 0 = hélices al revés |
+
+`banco` es un diagnóstico que no necesita registro rápido: estima el tope de la rótula (la
+inclinación típica en reposo), el tiempo que el dron pasó apoyado en él y, con el modelo del motor
+de QuadSim, la razón entre el momento de los motores y el de la gravedad en los momentos en que el
+dron estuvo quieto en el tope. Una razón mayor que 1.5 sostenida varias muestras quiere decir que,
+según el modelo, los motores debían levantarlo y no lo hicieron. `comparar --banco` agrega este
+diagnóstico al resumen.
 
 ## Qué compara
 
@@ -57,6 +69,8 @@ de ArduCopter: la salida del ciclo k sale del objetivo del ciclo k − 1 y del g
   `INS_GYRO_FILTER`);
 - actitud inicial: `ANG` al inicio del tramo;
 - acelerador del piloto: `CTUN.ThI`;
+- tasas medidas: el giroscopio crudo (`GYR`, si el registro trae IMU_RAW), filtrado con
+  `INS_GYRO_FILTER` como en el autopiloto; si no, `RATE`;
 - referencia, con `--referencias ang`: la actitud objetivo del firmware (`ANG.DesRoll`,
   `DesPitch`, `DesYaw`) entra directo al controlador de actitud, con su derivada como
   prealimentación. Así se comparan controlador, PID y planta sin el modelo de comando;
@@ -71,12 +85,14 @@ las que hay que corregir en el simulador.
 
 En ArduCopter 4.7, `ANG`, `RATE` y los `PID` se registran a la tasa del lazo solo si
 `LOG_BITMASK` tiene el bit 0 (`ATTITUDE_FAST`, «Fast Attitude» en Mission Planner). Sin él quedan
-a 10 Hz (`ArduCopter/Copter.cpp`, `loop_rate_logging` y `ten_hz_logging_loop`). El `.param` del
-dron del 29 de octubre de 2026 tiene `LOG_BITMASK` = 180222: falta ese bit. **Use 180223.**
+a 10 Hz (`ArduCopter/Copter.cpp`, `loop_rate_logging` y `ten_hz_logging_loop`). El bit 0 es el
+único impar: si `LOG_BITMASK` es par, falta. Los `.param` del dron del 29 de octubre (180222) y
+del 14 de noviembre (669434) no lo tienen. **Con el valor del 14 de noviembre, use 669435**: deja
+también el giroscopio crudo (bit 19, IMU_RAW), que sí sirvió.
 
 | Qué | Parámetro |
 |---|---|
-| Actitud, tasas y PID a 400 Hz | `LOG_BITMASK` = 180223 |
+| Actitud, tasas y PID a la tasa del lazo | `LOG_BITMASK` = 669435 (impar) |
 | Vibración (opcional, para el modelo de sensores) | `INS_LOG_BAT_MASK` = 1 |
 
 `RCIN` y `RCOU` se registran a 10 Hz en cualquier caso; las salidas a los motores a la tasa del

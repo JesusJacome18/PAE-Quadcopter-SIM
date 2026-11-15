@@ -65,7 +65,7 @@ from .estimators import NavEstimator, make_estimator
 from .filters import Biquad
 from .propulsion import Mixer, esc_steady_speed
 from .sensors import SensorConfig, SensorSuite
-from .vehicles import G, VehicleParams, get_vehicle, with_payload
+from .vehicles import G, VehicleParams, get_vehicle, with_payload, with_pwm_range
 
 
 ATTITUDE_LAWS = ("quadsim", "ardupilot")
@@ -241,6 +241,10 @@ class Simulation:
         # generadores propios con c.seed, y sembrar el global alteraba a otro
         # codigo del mismo proceso)
         self.nominal = get_vehicle(c.vehicle)
+        if c.attitude_law == "ardupilot":
+            # sigma = salida de ArduPilot: el mapa del ESC sigue a MOT_PWM_MIN/MAX
+            self.nominal = with_pwm_range(self.nominal, c.ardupilot.pwm_min,
+                                          c.ardupilot.pwm_max)
         self.p: VehicleParams = self.nominal
         for name in ("physics_hz", "ctrl_hz", "outer_hz"):
             if not getattr(c, name) > 0:

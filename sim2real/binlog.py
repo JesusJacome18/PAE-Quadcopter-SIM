@@ -14,6 +14,8 @@ Mensajes que usa la comparacion (nombres de ArduCopter 4.7):
          ThO = acelerador a los motores, ThH = acelerador de hover
   RCIN, RCOU   palancas y salidas a los ESC [us], a 10 Hz
   IMU    giroscopio [rad/s] y acelerometro [m/s^2] (instancia 0)
+  GYR, ACC  giroscopio [rad/s] y acelerometro [m/s^2] crudos, a la tasa del
+         sensor, si LOG_BITMASK tiene el bit 19 (IMU_RAW); instancia 0
   ATT    actitud del AHRS a 10 Hz (siempre)
   PARM   todos los parametros al arrancar el registro
   MODE   cambios de modo de vuelo
@@ -28,11 +30,11 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 DEFAULT_TYPES = ("ANG", "RATE", "PIDR", "PIDP", "PIDY", "CTUN", "RCIN", "RCOU", "IMU",
-                 "ATT", "PARM", "MODE", "VIBE")
+                 "ATT", "PARM", "MODE", "VIBE", "GYR")
 
 #: Bits de LOG_BITMASK de ArduCopter que importan para comparar con el simulador
 LOG_BITS = {0: "ATTITUDE_FAST", 1: "ATTITUDE_MED", 4: "CTUN", 6: "RCIN", 7: "IMU",
-            10: "RCOUT", 12: "PID", 18: "IMU_FAST"}
+            10: "RCOUT", 12: "PID", 18: "IMU_FAST", 19: "IMU_RAW"}
 
 #: Modos de ArduCopter (ModeNum)
 COPTER_MODES = {0: "Stabilize", 1: "Acro", 2: "AltHold", 3: "Auto", 4: "Guided",
@@ -102,8 +104,9 @@ class BinLog:
 def load(path: str, types: Sequence[str] = DEFAULT_TYPES) -> BinLog:
     """
     Lee el .bin (o un .log de texto) y devuelve los mensajes pedidos como
-    arreglos de NumPy. El tiempo `t` es TimeUS en segundos desde el primer
-    mensaje con marca de tiempo. Del IMU se toma solo la instancia 0.
+    arreglos de NumPy. El tiempo `t` es TimeUS en segundos (tiempo desde que
+    arranco la placa, el mismo que muestra Mission Planner). Del IMU se toma
+    solo la instancia 0.
     """
     try:
         from pymavlink import DFReader
@@ -125,7 +128,7 @@ def load(path: str, types: Sequence[str] = DEFAULT_TYPES) -> BinLog:
         if typ == "PARM":
             params[str(m.Name)] = float(m.Value)
             continue
-        if typ == "IMU" and getattr(m, "I", 0) != 0:
+        if typ in ("IMU", "GYR", "ACC") and getattr(m, "I", 0) != 0:
             continue
         if typ == "MODE":
             num = int(getattr(m, "ModeNum", getattr(m, "Mode", -1)))
@@ -139,11 +142,7 @@ def load(path: str, types: Sequence[str] = DEFAULT_TYPES) -> BinLog:
             d.setdefault(f, []).append(float(v))
     rd.close() if hasattr(rd, "close") else None
     log = BinLog(path=path, params=params)
-    t0 = None
-    for d in raw.values():
-        if "TimeUS" in d and d["TimeUS"]:
-            t0 = d["TimeUS"][0] if t0 is None else min(t0, d["TimeUS"][0])
-    t0 = t0 or 0.0
+    t0 = 0.0
     for typ, d in raw.items():
         arr = {k: np.asarray(v, dtype=float) for k, v in d.items()}
         if "TimeUS" in arr:

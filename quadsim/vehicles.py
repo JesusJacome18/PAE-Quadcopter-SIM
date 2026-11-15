@@ -123,6 +123,14 @@ class VehicleParams:
     # SensorConfig.imu_antialias_hz). None = sin filtro (IMU muestreada a la
     # tasa de control, como en los vehiculos de referencia).
     imu_antialias_hz: Optional[float] = None
+    # Curva del motor (k_w, exp_w, pwm_lo_esc, pwm_hi_esc):  w = k_w * s**exp_w
+    # con s = (PWM - pwm_lo_esc) / (pwm_hi_esc - pwm_lo_esc). Si existe, el
+    # mapa del ESC se puede recalcular para otro rango de salida del
+    # autopiloto (with_pwm_range). None = solo la recta esc_Cr / esc_wb.
+    motor_curve: Optional[Tuple[float, float, float, float]] = None
+    # PWM [us] que corresponde a sigma = 0 y sigma = 1 (MOT_PWM_MIN/MAX con
+    # que se ajusto esc_Cr / esc_wb). None = sigma sin PWM asociado.
+    sigma_pwm: Optional[Tuple[float, float]] = None
 
     # --- aerodinamica del fuselaje -----------------------------------------
     cd_quad_xy: float = 0.055         # N/(m/s)^2   f = -Cd v|v| en x_B, y_B
@@ -391,21 +399,21 @@ ARDU_RATIO_W_6045 = 0.885        # w(6045) / w(5046) a igual acelerador (K2306.5
 def esc_map_fit(k_w: float, exp_w: float, pwm_lo_esc: float = 1000.0,
                 pwm_hi_esc: float = 2000.0, pwm_min: float = 1000.0,
                 pwm_max: float = 1500.0, sigma_esc_min: float = 0.2,
-                n: int = 401) -> Tuple[float, float, float]:
+                n: int = 401, sigma_esc_max: float = 1.0) -> Tuple[float, float, float]:
     """
     Recta del ESC  w = C_R*sigma + w_b  para un autopiloto que manda PWM
     entre pwm_min (sigma = 0) y pwm_max (sigma = 1) a un ESC que lee PWM en
     [pwm_lo_esc, pwm_hi_esc] y cuyo motor sigue  w = k_w * sigma_ESC**exp_w.
 
-    Minimos cuadrados sobre los puntos con sigma_ESC entre sigma_esc_min y 1
-    (por debajo de sigma_esc_min el motor no opera en vuelo). Devuelve
+    Minimos cuadrados sobre los puntos con sigma_ESC entre sigma_esc_min y
+    sigma_esc_max (por debajo de sigma_esc_min el motor no opera en vuelo). Devuelve
     (C_R, w_b, error relativo maximo del ajuste en %).
     """
     xs, ws = [], []
     for i in range(n):
         s = i / (n - 1)
         se = (pwm_min + (pwm_max - pwm_min) * s - pwm_lo_esc) / (pwm_hi_esc - pwm_lo_esc)
-        if sigma_esc_min <= se <= 1.0:
+        if sigma_esc_min <= se <= min(1.0, sigma_esc_max):
             xs.append(s)
             ws.append(k_w * se ** exp_w)
     if len(xs) < 2:
@@ -450,6 +458,45 @@ _ARDU_CAVEATS = (
 )
 
 
+#: Limite superior (sigma_ESC) de la banda en que with_pwm_range ajusta la recta.
+PWM_REFIT_SIGMA_ESC_MAX = 0.6
+
+
+def with_pwm_range(p: VehicleParams, pwm_min: float, pwm_max: float) -> VehicleParams:
+    """
+    El mismo vehiculo con sigma = salida de un autopiloto que manda PWM entre
+    pwm_min (sigma = 0) y pwm_max (sigma = 1): recalcula la recta del ESC con
+    esc_map_fit() sobre la curva del motor y mantiene en el mismo PWM la zona
+    muerta del ESC. Si el vehiculo no tiene curva del motor o el rango ya es
+    ese, lo devuelve sin cambios.
+
+    La recta se ajusta en la banda de operacion sigma_ESC = 0.2..0.6 (PWM de
+    1200 a 1600 us con un ESC de 1000-2000 us): error < 4 % ahi y estacionario
+    a 5 us del de la curva. Por encima de la banda la recta sobrestima la
+    velocidad (11 % a 2000 us); ajustarla en todo el rango daria 10 % de error
+    en el estacionario.
+    """
+    if p.motor_curve is None or p.sigma_pwm is None:
+        return p
+    if abs(p.sigma_pwm[0] - pwm_min) < 1e-9 and abs(p.sigma_pwm[1] - pwm_max) < 1e-9:
+        return p
+    if not pwm_max > pwm_min:
+        raise ValueError("pwm_max debe ser mayor que pwm_min")
+    k_w, exp_w, lo_esc, hi_esc = p.motor_curve
+    cr, wb, err = esc_map_fit(k_w, exp_w, lo_esc, hi_esc, pwm_min, pwm_max,
+                              sigma_esc_max=PWM_REFIT_SIGMA_ESC_MAX)
+    lo0, hi0 = p.sigma_pwm
+    pwm_dead = lo0 + p.min_throttle * (hi0 - lo0)
+    min_thr = max(0.0, (pwm_dead - pwm_min) / (pwm_max - pwm_min))
+    return replace(p, esc_Cr=cr, esc_wb=wb, min_throttle=min_thr,
+                   sigma_pwm=(float(pwm_min), float(pwm_max)),
+                   caveats=p.caveats + (f" Salida del autopiloto de {pwm_min:g} a {pwm_max:g} us: "
+                                        f"recta del ESC recalculada en la banda de operacion "
+                                        f"(C_R = {cr:.1f}, w_b = {wb:.1f}, error < {err:.1f} %; "
+                                        f"sobrestima la velocidad por encima de "
+                                        f"sigma_ESC = {PWM_REFIT_SIGMA_ESC_MAX:g})."))
+
+
 def _arducopter(key: str, prop: str, pwm_lo_esc: int, pwm_hi_esc: int,
                 esc_Cr: float, esc_wb: float, name_extra: str = "",
                 short_extra: str = "") -> VehicleParams:
@@ -476,6 +523,9 @@ def _arducopter(key: str, prop: str, pwm_lo_esc: int, pwm_hi_esc: int,
                  "(ajuste lineal de la curva del motor, error < 2.5 %)."),
         frame="x", arm=0.150,
         esc_Cr=esc_Cr, esc_wb=esc_wb, min_throttle=0.10, blades=3,
+        motor_curve=(ARDU_MOTOR_K_W * (ARDU_RATIO_W_6045 if prop == "6045" else 1.0),
+                     ARDU_MOTOR_EXP_W, float(pwm_lo_esc), float(pwm_hi_esc)),
+        sigma_pwm=(1000.0, 1500.0),
         # INS_GYRO_FILTER = 75 Hz del .param, aplicado por ArduPilot a la tasa
         # del sensor (MPU-9250): quita el repliegue del paso de pala (480 Hz)
         imu_antialias_hz=75.0,
